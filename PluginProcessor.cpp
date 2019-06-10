@@ -49,6 +49,7 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 
 	//moi
 	afficheValue(0),
+	DataLastBuffer(192000,0),
 
 	//affichage
 	DataScopefifo(10, 0),
@@ -221,30 +222,27 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 		{
 			int bufsize = buffer.getNumSamples();
 			int sampleRate = getSampleRate();
-			//onset detector//
-			Onset(buffer.getReadPointer(channel), bufsize, sampleRate, time, counter, storageActual, storagePast);
+			const float* BufferData = buffer.getReadPointer(channel);
+			
+			//onset detector/
+			time.clear();
+			Onset(BufferData, bufsize, sampleRate, time, counter, storageActual, storagePast);
 
-			for (int i = 0; i < time.size();i++)
+			for (int i = 0; i < time.size(); i++)
 			{
-
-				pushNextSampleIntoFifo(time[i], (400));
-					
-
-				/*if (time[i]==-1)
-				{
-					pushNextSampleIntoFifo(time[i], sampleRate*0.40);
-				}
-				else
-				{
-					pushNextSampleIntoFifo(time[i], sampleRate*0.40);
-				}*/
-
-
-				//pushNextSampleIntoFifo(time[i], time.size());
+				pushNextSampleIntoFifo(time[i], (2048));
+					/*if (time[i]==-1)
+					{
+						pushNextSampleIntoFifo(time[i], sampleRate*0.40);
+					}
+					else
+					{
+						pushNextSampleIntoFifo(time[i], sampleRate*0.40);
+					}*/
+					//pushNextSampleIntoFifo(time[i], time.size());
 			}
+		
 
-			
-			
 
 			for (int i = 0; i < SCOPESIZE;i++)
 			{
