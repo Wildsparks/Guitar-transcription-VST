@@ -137,7 +137,7 @@ void onsetDetector(std::vector<float> const& storage, std::vector<double>& time,
 	unsigned int h (round(((1.0 - q) * lenthFft)));
 	float r (sampleRate / h);
 	unsigned int combination_width (ceil(r * lenthFft / sampleRate / 2));
-
+	
 	int alpha (10); // for interval max value between a and b // 10 by default.
 	int beta  (10); // for interval min value between a and b // 10 by default.
 	int a(10);      // for mean max value between a and b // 10 by default.
@@ -148,16 +148,14 @@ void onsetDetector(std::vector<float> const& storage, std::vector<double>& time,
 	//for alpha and beta :
 	//we choose 30 and 30 to let 30ms beetween each detection which allow a tempo of 33 bip par seconde soit 2000 BPM
 
-	float delta (0.25);          // threshold for the mean.
+	float delta (0.2);          // threshold for the mean.
 	unsigned int p(0);           // index
 	float sum;
 	unsigned int beginLoop = std::max(a, alpha);
 	unsigned int endLoop = std::max(b, beta);
 
-	time.clear();
-
 	//normalization//
-	double maxx = (*std::max_element((&invSparsity[0]), (&invSparsity[0] + invSparsity.size())));
+	float maxx = (*std::max_element((&invSparsity[0]), (&invSparsity[0] + invSparsity.size())));
 	for (int i = 0; i < int(invSparsity.size()); i++)
 	{
 		invSparsity[i] = invSparsity[i] / maxx;
@@ -165,15 +163,16 @@ void onsetDetector(std::vector<float> const& storage, std::vector<double>& time,
 	//end normalization//
 
 	//peack detection computation//
-	for (int i = beginLoop; i < (nbFrame - stopFrame - beginFrame - endLoop); i++)
+	for (int i = 40 ; i < 80 ; i++) //40ms beacause each frame is 1ms
 	{
+
 		sum = 0;
-		for (int j =-a;j < b;j++)
+		for (float j =-a;j < b;j++)
 		{
 			sum += invSparsity[int(double(i) + double(j))];
 		}
 
-		if ((invSparsity[i] == (*std::max_element((&invSparsity[0] + i - alpha), (&invSparsity[0] + i + beta)))) && (invSparsity[i] >= delta+(1.0 / (double(a) + double(b) + 1.0) * sum)) && ((i - p) > combination_width))
+		if ((invSparsity[i] == float(*std::max_element((invSparsity.begin() + i - alpha), (invSparsity.begin() + i + beta)))) && (invSparsity[i] >= delta+(1.0 / (double(a) + double(b) + 1.0) * sum)) && ((i - p) > combination_width))
 		{
 			p = i;
 			time.push_back(-1);
@@ -191,13 +190,13 @@ void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<dou
 	int nbBuffers    (ceil(nbEchentillon/ bufsize));                // number of buffer to store to get TIMEBUFFER miliseconde (ceil get the int sup)
 	
 	//set the first vector of storage//
-	if (storagePast.size() != int(double(bufsize) * nbBuffers * 2)) //80 milisecond
+	if (storagePast.size() != int(double(bufsize) * nbBuffers * 3)) //120 milisecond
 	{
 
 		storagePast.clear();
 		storageActual.clear();
 		
-		while (storagePast.size() != int(double(bufsize) * nbBuffers * 2))
+		while (storagePast.size() != int(double(bufsize) * nbBuffers * 3))
 		{
 			storagePast.push_back(1);
 		}
@@ -212,15 +211,15 @@ void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<dou
 
 		for (int i = 0; i < (bufsize * nbBuffers); i++)
 		{
-			storagePast.push_back( storageActual[i] ); //add the new 40ms to the old 80ms 
+			storagePast.push_back(storageActual[i]); //add the new 40ms to the old 80ms 
 		}
-		
+
 		//120ms analysis from 20ms to 60 ms to get 40ms after and pluck excitation
 		onsetDetector(storagePast, time, sampleRate);
 
-		for (int i = 0; i < (bufsize * nbBuffers*2); i++)
+		for (int i = 0; i < (bufsize * nbBuffers * 3); i++)
 		{
-			storagePast[i]=(storagePast[i + double(bufsize) * nbBuffers]); //40ms first milisecond to trash by decay
+			storagePast[i] = (storagePast[i + double(bufsize) * nbBuffers]); //40ms first milisecond to trash by decay
 		}
 
 		for (int i = 0; i < (bufsize * nbBuffers); i++)
@@ -229,7 +228,7 @@ void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<dou
 		}
 
 		storageActual.clear();
-
+		
 	}
 	else
 	{
@@ -240,3 +239,4 @@ void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<dou
 		counter++;
 	}
 }
+
