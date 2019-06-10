@@ -12,3 +12,7 @@ The vst could test this detector by using the microphone and some clap of hands.
 edit : 10/06
 
 C++ done for the onset detector. The plotting is until now not adapted... need to change that !
+
+edit : 10/06 : 16.47
+
+plotting perfect with the onset detector working in real time over guitar sound.
