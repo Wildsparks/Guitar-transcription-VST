@@ -16,9 +16,9 @@
 //==============================================================================
 /**
 */
-class Jacode_iiiAudioProcessorEditor : public AudioProcessorEditor,                //hérite de audioprocessoreditor
-	                                   public Timer
-//	                                   private Slider::Listener
+class Jacode_iiiAudioProcessorEditor : public AudioProcessorEditor,                //hÃ©rite de audioprocessoreditor
+	                                   public Timer,
+	                                   public Slider::Listener
 {
 public:  
     Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioProcessor&);                     //constructor
@@ -28,6 +28,7 @@ public:
     void paint (Graphics&) override;                                                
     void resized() override;
 	void timerCallback() override;
+	void sliderValueChanged(Slider* slider) override;
 
 private:
 	
@@ -36,7 +37,16 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     Jacode_iiiAudioProcessor& processor;
+
+	//backgournd//
+	Image background;
+
+	//onset treashold//
+	Slider thresholdSlider;
+	Label thresholdLabel;
+
 	Label labelvalue;
 	double value;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Jacode_iiiAudioProcessorEditor)
 };
