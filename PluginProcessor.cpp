@@ -12,11 +12,14 @@
 #include "PluginEditor.h"
 
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Estimation.h"
-#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Features.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PreProcessing.h"
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Features.h"
+
 #include <vector>
 
 #define M_PI 3.141592653589793238460
+#define TIMEBUFFER 0.04
 struct Model;
 
 //==============================================================================
@@ -42,20 +45,22 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 
 	//onset//
 	counter(0),
-	time(10,0),
+	timeOfOnset(1, 0),
+	thresholdValue(0),
+	onsetdetected(false),
 
-	storageActual(10, 0),
-	storagePast(10, 0),
+	storageActual(1, 0),
+	storagePast(1, 0),
 
 	//moi
 	afficheValue(0),
-	DataLastBuffer(192000,0),
+	DataLastBuffer(192000, 0),
 
 	//affichage
-	DataScopefifo(10, 0),
-	DataScope(10, 0),
-	scopeData(),
-	scopeData2(),
+	DataScopefifoNote(1, 0),
+	DataScopeNote(1, 0),
+	scopeDataPluck(),
+	scopeDataNote(),
 	counterAnalyser(0),
 	nextFFTBlockReady(false),
 
@@ -71,13 +76,6 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
                        )
 #endif
 {
-
-	//classifier=(Calcul_parametre())
-
-	//onset//
-	
-
-	
 
 }
 
@@ -220,41 +218,62 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
     {
 		if (channel == 0)
 		{
-			int bufsize = buffer.getNumSamples();
-			int sampleRate = getSampleRate();
-			const float* BufferData = buffer.getReadPointer(channel);
-			
+			int segmentSize = TIMEBUFFER * buffer.getNumSamples(); //40ms en sample
+			std::vector<float> newSegment;
+
 			//onset detector/
-			time.clear();
-			Onset(BufferData, bufsize, sampleRate, time, counter, storageActual, storagePast);
+			timeOfOnset.clear();
+			Onset(buffer.getReadPointer(channel), buffer.getNumSamples(), getSampleRate(), timeOfOnset, counter, storageActual, storagePast, thresholdValue);
 
-			for (int i = 0; i < time.size(); i++)
+			for (int i = 0; i < timeOfOnset.size(); i++)
 			{
-				pushNextSampleIntoFifo(time[i], (2048));
-					/*if (time[i]==-1)
+				pushNextSampleIntoFifo(timeOfOnset[i], (4096));
+
+				if (timeOfOnset[i] == -1) //detection of an Onset
+				{
+					afficheValue++;
+					if (onsetdetected == false)
 					{
-						pushNextSampleIntoFifo(time[i], sampleRate*0.40);
+						newSegment.clear();
+						newSegment.push_back(storagePast[(double(i) + double(segmentSize))]);
+						onsetdetected == true;
 					}
-					else
+					else if(newSegment.size() < segmentSize)//if a new onset is detect earlier
 					{
-						pushNextSampleIntoFifo(time[i], sampleRate*0.40);
-					}*/
-					//pushNextSampleIntoFifo(time[i], time.size());
+						Preprocessing(newSegment, getSampleRate());
+						newSegment.clear(); //we create a new segment
+						newSegment.push_back(storagePast[(double(i) + double(segmentSize))]);
+						//we continue to fill the new segment
+					}
+					else // no new onset and the segment have its 40ms but this will never arrive normaly cause we will not detect between 40ms buffer
+					{
+						Preprocessing(newSegment, getSampleRate());
+						onsetdetected == false;
+					}
+				}
+				else 
+				{
+					if (newSegment.size() < segmentSize && onsetdetected == true) // no detection and no 40ms so just fill the segment
+					{
+						newSegment.push_back(storagePast[(double(i) + double(segmentSize))]);
+					}
+					else if (newSegment.size() == segmentSize && onsetdetected == true) //segment ready so predict and clear
+					{
+						Preprocessing(newSegment, getSampleRate());
+						newSegment.clear();
+						onsetdetected = false;
+					}
+					else 
+					{
+						//do nothing
+					}
+					
+				}
 			}
-		
-
-
-			for (int i = 0; i < SCOPESIZE;i++)
-			{
-				scopeData[i] = 0;//channelData[int(round(i * bufsize / double(scopeSize)))];
-			}
-
-			
 			//end//
 
 			//featuresExtraction(w0, B, channelData, bufsize);
 
-	
 			/*for (int j = 0; j < trueString; j++)
 			{
 				for (int i = 0; i < trueFret; i++)
@@ -280,10 +299,7 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 			//JMatrix.maxCoeff(&position);
 			//afficheValue = counter;
 		}
-
-
     }
-
 }
 
 //==============================================================================//
@@ -314,46 +330,45 @@ void Jacode_iiiAudioProcessor::setStateInformation (const void* data, int sizeIn
     // whose contents will have been created by the getStateInformation() call.
 }
 
-
-//=================================MOI===========================================
+//==============================================================================//
+//=================================MOI==========================================//
+//==============================================================================//
 
 double Jacode_iiiAudioProcessor::getAfficheValue()
 {
 	return(afficheValue);
 }
 
-
 //==============================================================================//
 //=================================Analyser=====================================//
 //==============================================================================//
-
 
 void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(float sample, int size) noexcept
 {
 	if (!nextFFTBlockReady)
 	{
-		if (DataScope.size() != size)
+		if (DataScopeNote.size() != size)
 		{
-			DataScope.clear();
-			DataScopefifo.clear();
+			DataScopeNote.clear();
+			DataScopefifoNote.clear();
 			for (int i = 0; i < size;i++)
 			{
-				DataScope.push_back(0);
-				DataScopefifo.push_back(0);
+				DataScopeNote.push_back(0);
+				DataScopefifoNote.push_back(0);
 			}
 		}
 
-		std::rotate(DataScopefifo.begin(), DataScopefifo.begin() + 1, DataScopefifo.end());
-		DataScopefifo[size - 1.0] = sample;
+		std::rotate(DataScopefifoNote.begin(), DataScopefifoNote.begin() + 1, DataScopefifoNote.end());
+		DataScopefifoNote[size - 1.0] = sample;
 
-		DataScope=DataScopefifo;
+		DataScopeNote =DataScopefifoNote;
 
 		nextFFTBlockReady = true;
 	}
 	else
 	{
-		std::rotate(DataScopefifo.begin(), DataScopefifo.begin() + 1, DataScopefifo.end());
-		DataScopefifo[size - 1.0] = sample;
+		std::rotate(DataScopefifoNote.begin(), DataScopefifoNote.begin() + 1, DataScopefifoNote.end());
+		DataScopefifoNote[size - 1.0] = sample;
 	}
 }
 
@@ -361,14 +376,8 @@ void Jacode_iiiAudioProcessor::drawNextFrameOfSpectrum()
 {
 	for (int i = 0; i < SCOPESIZE; i++)
 	{
-
-		float level = DataScope[floor(i * DataScope.size() / SCOPESIZE)];
-
-		//float(cos(2*M_PI* afficheValue++ /1000));
-		//afficheValue = (level);
-		scopeData2[i] = level;//jlimit(-1.0f, +1.0f, level);
+		scopeDataNote[i] = DataScopeNote[floor(i * DataScopeNote.size() / SCOPESIZE)];
 	}
-
 }
 
 bool Jacode_iiiAudioProcessor::getNextFFTBlockReady()
@@ -385,9 +394,15 @@ void Jacode_iiiAudioProcessor::drawFrame(Graphics& g)
 {
 	for (int i = 1; i < SCOPESIZE; i++)
 	{
-		auto width = 1200;
-		auto height = 1000;
-		g.drawLine({ (float)jmap(i - 1, 0, SCOPESIZE - 1, 0, width),
+		auto width = 1000;
+		auto height = 600;
+
+		if (scopeDataNote[i] == -1)
+		{
+			g.drawEllipse((float)jmap(i, 0, SCOPESIZE - 1, 65, width-60), (0.25 * height-10), 10, 10, 4);
+		}
+		
+		/*g.drawLine({ (float)jmap(i - 1, 0, SCOPESIZE - 1, 0, width),
 							  jmap(scopeData[i - 1], -1.0f, 1.0f, (float)height, 0.0f),
 					 (float)jmap(i,    0, SCOPESIZE - 1, 0, width),
 							  jmap(scopeData[i],     -1.0f, 1.0f, (float)height, 0.0f) });
@@ -395,10 +410,14 @@ void Jacode_iiiAudioProcessor::drawFrame(Graphics& g)
 		g.drawLine({ (float)jmap(i - 1, 0, SCOPESIZE - 1, 0, width),
 					          jmap(scopeData2[i - 1], -1.0f, 1.0f, (float)height, 0.0f),
 			         (float)jmap(i,     0, SCOPESIZE - 1, 0, width),
-					          jmap(scopeData2[i],     -1.0f, 1.0f, (float)height, 0.0f) });
+					          jmap(scopeData2[i],     -1.0f, 1.0f, (float)height, 0.0f) });*/
 	}	
 }
 
+void Jacode_iiiAudioProcessor::setThresholdValue(int value)
+{
+	thresholdValue = value;
+}
 
 
 //==============================================================================
@@ -407,3 +426,4 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new Jacode_iiiAudioProcessor();
 }
+
