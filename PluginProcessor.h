@@ -17,18 +17,18 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Features.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
 
-#define SCOPESIZE 40000
+#define SCOPESIZE 4096
 struct Model;
 
 //==============================================================================
 /**
 */
-class Jacode_iiiAudioProcessor  : public AudioProcessor                             //héritage de audioprocessor
+class Jacode_iiiAudioProcessor  : public AudioProcessor                             //hÃ©ritage de audioprocessor
 {
-public:                                                                             //déclaration des méthodes et accesseur
+public:                                                                             //dÃ©claration des mÃ©thodes et accesseur
     //==============================================================================
     Jacode_iiiAudioProcessor();                                                     //constructor
-    ~Jacode_iiiAudioProcessor();                                                    //décontructor
+    ~Jacode_iiiAudioProcessor();                                                    //dÃ©contructor
 
     //=================================METHODE======================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -63,11 +63,9 @@ public:                                                                         
     void getStateInformation (MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-	//===================================MOI========================================
-
-	double getAfficheValue();
-
-	//================================ANALYSEUR=====================================
+	//==============================================================================//
+	//================================Osciloscope===================================//
+	//==============================================================================//
 
 	void pushNextSampleIntoFifo(float sample, int size) noexcept;
 	void drawNextFrameOfSpectrum();
@@ -75,7 +73,17 @@ public:                                                                         
 	void setNextFFTBlockReady(bool value);
 	void drawFrame(Graphics& g);
 
-private:                                                                            //déclaration des Attributs
+	//==============================================================================//
+	//==================================Onset=======================================//
+	//==============================================================================//
+
+	void setThresholdValue(int value);
+
+	//===================================MOI========================================
+
+	double getAfficheValue();
+
+private:                                                                            //dÃ©claration des Attributs
     //================================ATTRIBUT======================================
 	double afficheValue;
 	Model classifier;
@@ -101,20 +109,22 @@ private:                                                                        
 	int counter;
 	std::vector<float> storageActual;
 	std::vector<float> storagePast;
-	std::vector<double> time;
+	std::vector<double> timeOfOnset;
+	int thresholdValue;
+	bool onsetdetected;
 
 	//analyser//
 
-	std::vector<float> DataScope;      
-	std::vector<float> DataScopefifo;
+	std::vector<float> DataScopeNote;      
+	std::vector<float> DataScopefifoNote;
 	bool nextFFTBlockReady = false;       //This temporary boolean tells us whether the next FFT block is ready to be rendered.
 	bool newBuffer = true;
-	float scopeData[SCOPESIZE];           //The scopeData float array of size 512 will contain the points to display on the screen.
-	float scopeData2[SCOPESIZE];
+	float scopeDataNote[SCOPESIZE];           //The scopeData float array of size 512 will contain the points to display on the screen.
+	float scopeDataPluck[SCOPESIZE];
 	int counterAnalyser;
+
+
+	//temp
+	std::vector<float> DataLastBuffer;
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Jacode_iiiAudioProcessor)
 };
-
-
-
-
