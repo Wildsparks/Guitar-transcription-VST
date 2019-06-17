@@ -1,23 +1,7 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PreProcessing.h"
+#define LENGTHFFT pow(2,15) //19
 
-#include <iostream>
-
-#include <complex>
-#include <valarray>
-#include <algorithm> 
-
-#include <vector>
-
-typedef std::complex<double> Complex;
-typedef std::valarray<Complex> CArray;
-
-#define M_PI 3.141592653589793238460
-
-void fftprec(CArray& x);
-void Hanningprec(int lenth, std::vector<float>& hann);
-void ifft(CArray& x);
-
-void Preprocessing(std::vector<float>& segment, int sampleRate)
+void Preprocessing(std::vector<float>& segment)
 {
 
 	//=====================================================//
@@ -31,15 +15,15 @@ void Preprocessing(std::vector<float>& segment, int sampleRate)
 	CArray segmentFreq(segment.size());
 	//windows//
 	std::vector<float> hann(segment.size());
-	Hanningprec(segment.size(), hann);
+	Hanning(segment.size(), hann);
 	//end - windows//
 
 	for (int i = 0;i < segment.size();++i)
 	{
-		segmentFreq[i] = segment[i]* hann[i];
+		segmentFreq[i] = segment[i]* double(hann[i]);
 	}
 
-	fftprec(segmentFreq);
+	fft(segmentFreq);
 
 	std::vector<int> h(segment.size());
 
@@ -59,68 +43,38 @@ void Preprocessing(std::vector<float>& segment, int sampleRate)
 	{
 		segment[i] = segmentFreq[i].real();
 	}
-
-
 	//=====================================================//
 	//===============Hilbert transform end=================//
 	//=====================================================//
-}
 
+	//=====================================================//
+	//================Zero padding & FFT===================//
+	//=====================================================//
 
-
-
-
-
-
-
-
-
-
-
-
-void fftprec(CArray& x)
-{
-	const size_t N = x.size();
-	if (N <= 1) return;
-
-	// divide
-	CArray even = x[std::slice(0, N / 2, 2)];
-	CArray  odd = x[std::slice(1, N / 2, 2)];
-
-	// conquer
-	fftprec(even);
-	fftprec(odd);
-
-	// combine
-	for (size_t k = 0; k < N / 2; ++k)
+	while (segment.size() < LENGTHFFT)
 	{
-		Complex t = std::polar(1.0, -2 * M_PI * k / N) * odd[k];
-		x[k] = even[k] + t;
-		x[k + N / 2] = even[k] - t;
+		segment.push_back(0);
 	}
-}
 
-void Hanningprec(int lenth, std::vector<float>& hann)
-{
-	//Hanning Window
-	for (int i = 0; i < lenth; i++) {
-		double multiplier = 0.5 * (1 - cos(2 * M_PI * i / (lenth - 1.0)));
-		hann[i] = multiplier;
+	segmentFreq.resize(LENGTHFFT);
+
+	for (int i = 0;i < LENGTHFFT;++i)
+	{
+		segmentFreq[i] = segment[i];
 	}
-	//
-}
 
-void ifft(CArray& x)
-{
-	// conjugate the complex numbers
-	x = x.apply(std::conj);
+	fft(segmentFreq);
 
-	// forward fft
-	fftprec(x);
+	for (int i = 0;i < LENGTHFFT /2;++i)
+	{
+		segment[i] =(2 * pow(std::abs(segmentFreq[i]),2)); //10.0 * log10() if you want db
+	}
+	for (int i = LENGTHFFT / 2;i < LENGTHFFT;++i)
+	{
+		segment.pop_back();
+	}
 
-	// conjugate the complex numbers again
-	x = x.apply(std::conj);
-
-	// scale the numbers
-	x /= x.size();
+	//=====================================================//
+	//==============Zero padding & FFT End=================//
+	//=====================================================//
 }
