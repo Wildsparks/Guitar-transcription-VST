@@ -3,13 +3,9 @@
 #define PREPROCESSING_INCLUDED
 
 #include <iostream>
-
-#include <complex>
-#include <valarray>
-#include <algorithm> 
-
 #include <vector>
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Functions.h"
 
-void Preprocessing(std::vector<float>& segment, int sampleRate);
+void Preprocessing(std::vector<float>& segment);
 
 #endif // PREPROCESSING_INCLUDED
