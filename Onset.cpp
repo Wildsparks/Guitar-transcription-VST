@@ -1,26 +1,10 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
-#include <iostream>
-
-#include <complex>
-#include <valarray>
-#include <algorithm> 
-
-#include <vector>
-#include <numeric>
-#include <string>
-#include <functional>
 
 #define TIMEBUFFER 0.04 //40ms of observation
-#define M_PI 3.141592653589793238460
 
-typedef std::complex<double> Complex;
-typedef std::valarray<Complex> CArray;
+void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue);
 
-void onsetDetector(std::vector<float> const& storage, std::vector<double>& timeOfOnset, int sampleRate, int const& thresholdValue);
-void fft(CArray& x);
-void Hanning(int lenth, std::vector<float>& hann);
-
-void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<double>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue)
+void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue)
 {
 	float nbEchentillon ((TIMEBUFFER * sampleRate));
 	int nbBuffers    (ceil(nbEchentillon/ bufsize));                // number of buffer to store to get TIMEBUFFER miliseconde (ceil get the int sup)
@@ -76,7 +60,7 @@ void Onset(const float* channelData, int bufsize,int sampleRate, std::vector<dou
 	}
 }
 
-void onsetDetector(std::vector<float> const& storage, std::vector<double>& timeOfOnset, int sampleRate, int const& thresholdValue)
+void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue)
 {
 
 	unsigned int gapBetweenFrame(1);  // in ms
@@ -202,55 +186,12 @@ void onsetDetector(std::vector<float> const& storage, std::vector<double>& timeO
 		if ((invSparsity[i] == float(*std::max_element((invSparsity.begin() + i - alpha), (invSparsity.begin() + i + beta)))) && (invSparsity[i] >= delta + (1.0 / (double(a) + double(b) + 1.0) * sum)) && ((i - p) > combination_width))
 		{
 			p = i;
-			timeOfOnset.push_back(-1);
+			timeOfOnset.push_back(true);
 		}
 		else
 		{
-			timeOfOnset.push_back(invSparsity[i]);
+			timeOfOnset.push_back(false);
 		}
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-void fft(CArray& x)
-{
-	const size_t N = x.size();
-	if (N <= 1) return;
-
-	// divide
-	CArray even = x[std::slice(0, N / 2, 2)];
-	CArray  odd = x[std::slice(1, N / 2, 2)];
-
-	// conquer
-	fft(even);
-	fft(odd);
-
-	// combine
-	for (size_t k = 0; k < N / 2; ++k)
-	{
-		Complex t = std::polar(1.0, -2 * M_PI * k / N) * odd[k];
-		x[k] = even[k] + t;
-		x[k + N / 2] = even[k] - t;
-	}
-}
-
-void Hanning(int lenth, std::vector<float>& hann)
-{
-	//Hanning Window
-	for (int i = 0; i < lenth; i++) {
-		double multiplier = 0.5 * (1 - cos(2 * M_PI * i / (lenth - 1.0)));
-		hann[i] = multiplier;
-	}
-	//
-}
