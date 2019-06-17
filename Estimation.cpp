@@ -1,6 +1,5 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Estimation.h"
 #include <iostream>
-#include <Eigen/Dense>
 #include <random>
 
 using namespace Eigen;
@@ -41,14 +40,14 @@ Model Calcul_parametre()
 {
 	//randn
 	std::default_random_engine generator;
-	std::normal_distribution<double> distribution(0, 0.005);
+	std::normal_distribution<double> distribution(0.0, 1.0);
 	//-------------------------------//
-
+	double percentageStd = 0.00005;
 	double number = distribution(generator);
 	double P(1.0 / 3.0);
 	double force(0.05);
-	double Esteel = 2.27 * pow(10, 11); // Young's modulus for steel
-	double G = 79.3 * pow(10, 9); // known shear modulus steel
+	double Esteel = 2.27e11; // Young's modulus for steel
+	double G = 79.3e9; // known shear modulus steel
 	double rhoCore = 7950; //[kg/m^3]
 	double rhoWrapping = 6000; //[kg/m^3]
 
@@ -58,7 +57,7 @@ Model Calcul_parametre()
 	VectorXd L0(6);
 	for (int i = 0; i < 6; i++)
 	{
-		L0(i) = 0.6411 + distanceFactor(i) * 0.001; //distance from nut to bridge
+		L0(i) = 0.6411 + distanceFactor(i) * 1e-3; //distance from nut to bridge
 	}
 
 	int numStrings(6);
@@ -77,14 +76,14 @@ Model Calcul_parametre()
 
 	//dFull
 	VectorXd thicknessFactor(6);
-	thicknessFactor << 0.01, 0.013, 0.0172, 0.026, 0.036, 0.046;
+	thicknessFactor << 0.010, 0.013, 0.0172, 0.026, 0.036, 0.046;
 
 	VectorXd dFull(6);
 	dFull = thicknessFactor * 0.0254; //full diameter for the  strings
 
 
 	VectorXd thicknessFactorCore(6);
-	thicknessFactorCore << 0.01, 0.013, 0.0172, 0.0146, 0.016, 0.018;
+	thicknessFactorCore << 0.010, 0.013, 0.0172, 0.0146, 0.016, 0.018;
 
 
 	VectorXd dCore(6);
@@ -120,20 +119,20 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				mL0(j, i) = mL0(j, i) + distribution(generator) * mL0(j, i) * 0.001;
+				mL0(j, i) = mL0(j, i) + percentageStd * distribution(generator) * mL0(j, i);
 			}
 		}
 
 		//noise to T0
 		for (int j = 0; j < numStrings; j++)
 		{
-			T0(j) = T0(j) + distribution(generator) * T0(j) * 0.01;
+			T0(j) = T0(j) + percentageStd * distribution(generator) * T0(j);
 		}
 
 		//noise to dCore
 		for (int j = 0; j < numStrings; j++)
 		{
-			dCore(j) = dCore(j) + distribution(generator) * dCore(j) * 0.005;
+			dCore(j) = dCore(j) + percentageStd * distribution(generator) * dCore(j);
 		}
 
 		VectorXd dWrapping((dFull - dCore) * 0.5);
@@ -141,11 +140,11 @@ Model Calcul_parametre()
 		//noise to dWrapping
 		for (int j = 0; j < numStrings; j++)
 		{
-			dWrapping(j) = dWrapping(j) + distribution(generator) * dWrapping(j) * 0.005;
+			dWrapping(j) = dWrapping(j) + percentageStd * distribution(generator) * dWrapping(j);
 		}
 
 		//Add noise to plucking force
-		force = force + distribution(generator) * force * 0.00001;
+		force = force + percentageStd * distribution(generator) * force;
 
 
 		///--------------------------------------------///
@@ -164,29 +163,29 @@ Model Calcul_parametre()
 		VectorXd mu(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			mu(j) = (M_PI / 4) * (ACore(j) * rhoCore + rhoWrapping * (pow((2 * dWrapping(j) + dCore(j)), 2) - pow(dCore(j), 2)));
+			mu(j) = ACore(j) * rhoCore + rhoWrapping * (pow((2 * dWrapping(j) + dCore(j)), 2) - pow(dCore(j), 2)) * (M_PI / 4);
 		}
 
 		//Calculating deltaL from material properties
 
-		VectorXd D(dCore - dWrapping);
+		VectorXd D(dCore + dWrapping);
 
 		VectorXd TcOverTw(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			TcOverTw(j) = (8 * ACore(j) * D(j) * Esteel) / (G * pow(dWrapping(j), 5));
+			TcOverTw(j) = (8.0 * ACore(j) * pow(D(j), 3.0) * Esteel) / (G * pow(dWrapping(j), 5.0));
 		}
 
 		VectorXd Tc(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			Tc(j) = T0(j) / ((1 / TcOverTw(j)) + 1);
+			Tc(j) = T0(j) / ((1 / TcOverTw(j)) + 1.0);
 		}
 
 		VectorXd Tw(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			Tw(j) = T0(j) / (TcOverTw(j) + 1);
+			Tw(j) = T0(j) / (TcOverTw(j) + 1.0);
 		}
 
 		MatrixXd deltaL(6, 13);
@@ -239,7 +238,7 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				deltaHalf(j, i) = sqrt((pow(deltaDeltaL(j, i), 2) + deltaDeltaL(j, i) * mL0(j, i) * 2) / 4);
+				deltaHalf(j, i) = sqrt((pow(deltaDeltaL(j, i), 2.0) + deltaDeltaL(j, i) * mL0(j, i) * 2.0) / 4.0);
 			}
 		}
 
@@ -325,13 +324,13 @@ Model Calcul_parametre()
 
 	kk = 0;
 	MatrixXd meanFeatureMatrix(2, 78);
-	for (int i = 0; i <= numFrets; i++)
+	for (int i = 0; i <= numFrets; ++i)
 	{
-		for (int j = numStrings - 1; j >= 0; j--)
+		for (int j = numStrings - 1; j >= 0; --j)
 		{
 			meanFeatureMatrix(0, kk) = 0;
 			meanFeatureMatrix(1, kk) = 0;
-			for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; nombre_estimation++)
+			for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 			{
 				meanFeatureMatrix(0, kk) += featureMatrix[nombre_estimation](0, kk);
 				meanFeatureMatrix(1, kk) += featureMatrix[nombre_estimation](1, kk);
@@ -345,7 +344,6 @@ Model Calcul_parametre()
 		}
 	}
 	classifier.Mu = meanFeatureMatrix;
-	std::cout << "m =" << std::endl << meanFeatureMatrix << std::endl;
 
 	kk = 0;
 	VectorXd W(78);
@@ -364,7 +362,6 @@ Model Calcul_parametre()
 
 			classifier.Sigma[kk] = covariance(covMatrixTemp);
 			W(kk) = double(1.0 / (numStrings * (numFrets + 1.0)));
-			std::cout << "m =" << std::endl << classifier.Sigma[kk] << std::endl;
 
 			kk = kk + 1;
 		}
