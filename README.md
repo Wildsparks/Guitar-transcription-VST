@@ -16,3 +16,7 @@ C++ done for the onset detector. The plotting is until now not adapted... need t
 edit : 10/06 : 16.47
 
 plotting perfect with the onset detector working in real time over guitar sound.
+
+edit : 17/06 : 16.37
+
+pitchcandidate implemented + graphical adaptation over string and fret estimation.
