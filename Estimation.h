@@ -3,7 +3,7 @@
 #define ESTIMATION_INCLUDED
 
 #include <iostream>
-#include <Eigen/Dense>
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Source\package eigen\Eigen\Dense"
 #include <random>
 
 struct Model
