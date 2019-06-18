@@ -13,15 +13,25 @@ _number of realisation for the model
 _scope size
 
 _number of string
+
 _number of fret
+
 _standar deviation of the noise
+
 _size of the windows for onset
+
 _threashold for onset
+
 _size of mean windows and max windows for onset
+
 _résolution for pitch detection
+
 _number of zoom for pitch detection
+
 _temperament considération
+
 _range of frequence for pitch detection
+
 _time between two prediction
 
 What I have to do !
