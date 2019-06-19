@@ -4,7 +4,7 @@ First git-hub version of the waspaa paper implementation in c++.
 
 keep in mind : some variables are choose a bit randomly :
 
-_betares => une seul valeur possible pour l'instant
+_betares => only one value is taken until now
 
 _fftorder for onset and pitch
 
