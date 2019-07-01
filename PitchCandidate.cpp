@@ -1,8 +1,8 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PitchCandidate.h"
 #include <limits>
-#include <Eigen/Dense>
+#include <D:/ecler/Documents/Cours/Ingenieur_4A/Stage/Jacode_III/Source/package eigen/Eigen/Dense>
 
-void PitchCandidate(std::vector<int>& fretCandidate, std::vector<int>& stringCandidate, float observedPitch, std::vector<float> pitchReference, int nbString)
+void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<float> pitchReference, int nbString)
 {
 	double minVal(std::numeric_limits<double>::max());
 	int  minIndex(0);
@@ -21,6 +21,10 @@ void PitchCandidate(std::vector<int>& fretCandidate, std::vector<int>& stringCan
 	Eigen::MatrixXd Candidate(3, 2);
 	Candidate(0, 0) = stringFind;
 	Candidate(0, 1) = fretFind;
+	Candidate(1, 0) = 0;
+	Candidate(1, 1) = 0;
+	Candidate(2, 0) = 0;
+	Candidate(2, 1) = 0;
 
 	switch (stringFind)
 	{
@@ -199,13 +203,11 @@ void PitchCandidate(std::vector<int>& fretCandidate, std::vector<int>& stringCan
 		break;
 	}
 
-	fretCandidate.resize(3);
-	stringCandidate.resize(3);
+	finalCandidate.resize(3);
 
 	for (int j = 0; j < 3; ++j)
 	{
-		stringCandidate[j] = Candidate(j, 0);
-		fretCandidate[j] = Candidate(j, 1);
+		finalCandidate[j] = Candidate(j, 0)+Candidate(j, 1)*6;
 	}
-
+	sort(finalCandidate.begin(), finalCandidate.end());
 }
