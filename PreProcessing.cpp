@@ -85,7 +85,7 @@ fftw_complex* HilbertFFTForward(std::vector<float>& segment);
 double* HilbertFFTBackward(fftw_complex* out);
 void LastFFTForward(std::vector<float>& segment, double* hilbertOut);
 */
-void Preprocessing(std::vector<float>& segment)
+void Preprocessing(std::vector<float>& segment, std::vector<std::complex<double>>& hilbertOutput)
 {
 	//=====================================================//
 	//==================Hilbert transform==================//
@@ -100,13 +100,13 @@ void Preprocessing(std::vector<float>& segment)
 	}
 
 	fftw_complex* out;
-	double* in;
+	fftw_complex* in;
 
 	fftw_plan p;
 	
-	in = (double*)fftw_malloc(sizeof(double) * N);
+	in  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
 	out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N); 
-	p = fftw_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE);
+	p = fftw_plan_dft_1d(N, in, out,FFTW_FORWARD, FFTW_ESTIMATE);
 
 	//windows//
 	std::vector<double> Gauss(N);
@@ -115,7 +115,8 @@ void Preprocessing(std::vector<float>& segment)
 
 	for (int i = 0; i < N; ++i)
 	{
-		in[i] = segment[i] * Gauss[i];
+		in[i][REAL] = segment[i] * Gauss[i];
+		in[i][IMAG] = 0.0;
 	}
 
 	fftw_execute(p);
@@ -123,10 +124,10 @@ void Preprocessing(std::vector<float>& segment)
 	fftw_destroy_plan(p);
 	fftw_free(in);
 
-	double* hilbertOut;
-	hilbertOut = (double*)fftw_malloc(sizeof(double) * N);
+	fftw_complex* hilbertOut;
+	hilbertOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
 	fftw_plan q;
-	q = fftw_plan_dft_c2r_1d(N, out, hilbertOut, FFTW_ESTIMATE);
+	q = fftw_plan_dft_1d(N, out, hilbertOut, FFTW_BACKWARD, FFTW_ESTIMATE);
 
 	out[0][REAL] = 1.0 * out[0][REAL];
 	out[0][IMAG] = 1.0 * out[0][IMAG];
@@ -150,29 +151,39 @@ void Preprocessing(std::vector<float>& segment)
 	fftw_destroy_plan(q);
 
 	//=====================================================//
-	//===============Hilbert transform end=================//
+	//===============Hilbert transform end=================////NB : FFTW don't normalize fft data : need to be divide by length
 	//=====================================================//
+	hilbertOutput.clear();
+	std::complex<double> valueHilbertOutput(0,0);
+	for (int i = 0; i < N; ++i)
+	{
+		valueHilbertOutput.real(hilbertOut[i][REAL] / double(N));
+		valueHilbertOutput.imag(hilbertOut[i][IMAG] / double(N));
+		hilbertOutput.push_back(valueHilbertOutput);
+	}
 
 	//=====================================================//
 	//================Zero padding & FFT===================//
 	//=====================================================//
 
-	double* in2;
-	in2 = (double*)fftw_malloc(sizeof(double) * LENGTHFFT);
+	fftw_complex* in2;
+	in2    = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * LENGTHFFT);
 	fftw_complex* fftOut;
 	fftOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * LENGTHFFT);
 	
-	p = fftw_plan_dft_r2c_1d(LENGTHFFT, in2, fftOut, FFTW_ESTIMATE);
+	p = fftw_plan_dft_1d(LENGTHFFT, in2, fftOut,FFTW_FORWARD, FFTW_ESTIMATE);
 
 	for (int i = 0; i < N; ++i)
 	{
-		in2[i] = hilbertOut[i];
+		in2[i][REAL] = hilbertOut[i][REAL] / double(N);
+		in2[i][IMAG] = hilbertOut[i][IMAG] / double(N);
 
 	}
 	fftw_free(hilbertOut);
 	for (int i = N; i < LENGTHFFT; ++i)
 	{
-		in2[i] = 0.0;
+		in2[i][REAL] = 0.0;
+		in2[i][IMAG] = 0.0;
 	}
 
 	fftw_execute(p);
@@ -182,7 +193,7 @@ void Preprocessing(std::vector<float>& segment)
 
 	for (int i = 0; i < LENGTHFFT / 2; ++i)
 	{
-		segment[i] = (2 * (pow(fftOut[i][IMAG],2) + pow(fftOut[i][REAL],2))); //10.0 * log10() if you want db and *2 can be remove
+		segment[i] = (2.0 / (double)LENGTHFFT * (pow(fftOut[i][IMAG], 2.0) + pow(fftOut[i][REAL], 2.0))); //10.0 * log10() if you want db and *2 can be remove
 	}
 	fftw_destroy_plan(p);
 	fftw_free(fftOut);
