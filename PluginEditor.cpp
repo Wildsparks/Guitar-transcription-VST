@@ -23,10 +23,10 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
 
 
 	//size of the windows
-    setSize (1000, 600);
+    setSize (1600, 600);
 
 	//FPS
-	startTimerHz(60);  //interval en miliseconde divisÃ© par 8 pour faire des 60000 / BPM / 8
+	startTimerHz(60);  //interval en miliseconde divisé par 8 pour faire des 60000 / BPM / 8
 
 	//background
 	background = ImageCache::getFromMemory(BinaryData::backgroundImage_png, BinaryData::backgroundImage_pngSize);
@@ -39,7 +39,7 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
 	addAndMakeVisible(thresholdSlider);
 	thresholdSlider.setRange(0, 100);            
 	thresholdSlider.setTextValueSuffix(" %");    
-	thresholdSlider.setValue(50);
+	thresholdSlider.setValue(20);
 	thresholdSlider.addListener(this);
 	thresholdSlider.setColour(Slider::textBoxTextColourId, Colours::black);
 	//--------------------------------//
@@ -67,18 +67,18 @@ void Jacode_iiiAudioProcessorEditor::paint (Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
-    g.setColour (Colours::black);
+    g.setColour (Colours::darkgrey);
     g.setFont (15.0f);
 	
 	g.drawImage(background,
 		0,
 		0,
-		1000,
+		1600,
 		600,
 		0,
 		0,
-		1653,
-		511
+		1641,
+		501
 	);
 	processor.drawFrame(g);
 
@@ -89,23 +89,24 @@ void Jacode_iiiAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor..
-	auto sliderLeft = 120;
-	labelvalue.setBounds(sliderLeft, 300, getWidth() - sliderLeft, 200);
-	thresholdSlider.setBounds(sliderLeft, 500, getWidth() - sliderLeft - 80, 80);
+	auto sliderLeft = 820;
+	labelvalue.setBounds(sliderLeft, 400, getWidth() - sliderLeft, 100);
+	thresholdSlider.setBounds(sliderLeft, 500, getWidth() - sliderLeft - 180, 80);
 	
 }
 
 void Jacode_iiiAudioProcessorEditor::timerCallback()
 {
-
+	labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
 	if (processor.getNextFFTBlockReady())
 	{
 		labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
-		processor.setThresholdValue(thresholdSlider.getValue());
+		processor.setThresholdValue((int)thresholdSlider.getValue());
 		processor.drawNextFrameOfSpectrum();
 		processor.setNextFFTBlockReady(false);
 		repaint();
 	}
+
 }
 
 void Jacode_iiiAudioProcessorEditor::sliderValueChanged(Slider* slider)

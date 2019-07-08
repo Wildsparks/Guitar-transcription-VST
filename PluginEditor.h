@@ -16,7 +16,7 @@
 //==============================================================================
 /**
 */
-class Jacode_iiiAudioProcessorEditor : public AudioProcessorEditor,                //hÃ©rite de audioprocessoreditor
+class Jacode_iiiAudioProcessorEditor : public AudioProcessorEditor,                //hérite de audioprocessoreditor
 	                                   public Timer,
 	                                   public Slider::Listener
 {

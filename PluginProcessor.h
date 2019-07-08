@@ -12,72 +12,28 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include <Eigen/Dense>
-
-#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Estimation.h"
-#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Features.h"
-#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
-
-#define SCOPESIZE 4096
-struct Model;
-
-//==============================================================================
-/**
-*/
-class Jacode_iiiAudioProcessor  : public AudioProcessor                             //h√©ritage de audioprocessor
-{
-public:                                                                             //d√©claration des m√©thodes et accesseur
-    //==============================================================================
-    Jacode_iiiAudioProcessor();                                                     //constructor
-    ~Jacode_iiiAudioProcessor();                                                    //d√©contructor
-
-    //=================================METHODE======================================
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
-
-   #ifndef JucePlugin_PreferredChannelConfigurations
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-   #endif
-
-    void processBlock (AudioBuffer<float>&, MidiBuffer&) override;
-
-    //==============================================================================
-    AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override;
-
-    //==============================================================================
-    const String getName() const override;
-
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
-    double getTailLengthSeconds() const override;
-/*
-  ==============================================================================
-
-    This file was auto-generated!
-
-    It contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
-#pragma once
-
-#include "../JuceLibraryCode/JuceHeader.h"
-#include <Eigen/Dense>
-#include <thread>
-#include <mutex>
+#include <vector>
+#include <iostream> 
+#include <algorithm>
+#include <thread>        
+#include <mutex>         
+#include <condition_variable>
+#include <numeric>
+#include <future>
 
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Estimation.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PreProcessing.h"
-#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Features.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\HarmonicSummation.h"
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PitchCandidate.h"
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\InharmonicSummation.h"
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\AmplitudesEstimation.h"
+#include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PluckingPositionEstimatorLSD.h"
 
 #define SCOPESIZE 4096
 #define NBFRET 12
 #define NBSTRING 6
+#define NOMBRE_ESTIMATION 500
 
 struct Model;
 
@@ -86,17 +42,18 @@ struct result
 	std::vector<bool> isPlayed;
 	std::vector<int> Fret;
 	std::vector<int> String;
+	std::vector<float> Onset;
 };
 
 //==============================================================================
 /**
 */
-class Jacode_iiiAudioProcessor  : public AudioProcessor                             //h√©ritage de audioprocessor
+class Jacode_iiiAudioProcessor  : public AudioProcessor                             //hÈritage de audioprocessor
 {
-public:                                                                             //d√©claration des m√©thodes et accesseur
+public:                                                                             //dÈclaration des mÈthodes et accesseur
     //==============================================================================
     Jacode_iiiAudioProcessor();                                                     //constructor
-    ~Jacode_iiiAudioProcessor();                                                    //d√©contructor
+    ~Jacode_iiiAudioProcessor();                                                    //dÈcontructor
 
     //=================================METHODE======================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -135,7 +92,7 @@ public:                                                                         
 	//================================Osciloscope===================================//
 	//==============================================================================//
 
-	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size) noexcept;
+	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, float onsetValue) noexcept;
 	void drawNextFrameOfSpectrum();
 	bool getNextFFTBlockReady();
 	void setNextFFTBlockReady(bool value);
@@ -146,26 +103,46 @@ public:                                                                         
 	//==============================================================================//
 
 	void setThresholdValue(int value);
+	void ProcessWithSpectrogramOnsetDetector(const float* data, int bufSize, int sampleRate);
 
 	//==============================================================================//
 	//================================Prediction====================================//
 	//==============================================================================//
 	
-	float PitchEstimator(std::vector<float> const& segment);
-	float Jacode_iiiAudioProcessor::BetaEstimator();
-	void Jacode_iiiAudioProcessor::FretStringPrediction(float observedPitch, std::vector<float> pitchReference, int nbFret, Model classifier);
-	float Jacode_iiiAudioProcessor::PluckPositionPrediction();
+	float            Jacode_iiiAudioProcessor::PitchEstimator(const std::vector<float>& segment);
+	std::vector<int> BetaEstimator(const std::vector<float>& segment, float observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures);
+	int              FretStringPrediction(const std::vector<float>& segment);
+	double           PluckPositionPrediction(const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed);
 
 	//==============================================================================//
-	//===================================MOI========================================//
+	//============================Processing and test===============================//
 	//==============================================================================//
+
+
+	/*void threadPredict(std::vector<float> const& newSegment, int& prediction);
+	void Jacode_iiiAudioProcessor::OnsetThread();
+	void Jacode_iiiAudioProcessor::PredictionThread();
+	void Jacode_iiiAudioProcessor::DisplayThread();
+	void Jacode_iiiAudioProcessor::RunThread();*/
 
 	double getAfficheValue();
 
-private:                                                                            //d√©claration des Attributs
-    //================================ATTRIBUT======================================
+
+	//==============================================================================//
+	//================================End method====================================//
+	//==============================================================================//
+
+
+private:                                                                            //dÈclaration des Attributs
+
+
+	//==============================================================================//
+    //================================ATTRIBUT======================================//
+	//==============================================================================//
+
 	double afficheValue;
 	Model classifier;
+	Eigen::MatrixXd featureMatrix[NOMBRE_ESTIMATION];
 
 	Eigen::MatrixXd w0; //= squeeze(est_f0);
 	Eigen::MatrixXd B;  //= squeeze(BCoeff);
@@ -183,17 +160,17 @@ private:                                                                        
 	double P;
 	Eigen::VectorXd JMatrix;
 	double prediction;
-	std::vector<float> pitchReference;
+	std::vector<double> pitchReference;
 
 	//Initialize estimator / classifier implementation constants
-	float        segmentDuration   = 40e-3; // segment duration in seconds.
-	float        LOpen             = 64.3;  // assumed length of all open strings.
-	unsigned int highNbOfHarmonics = 25;    // assumed high number of harmonics(M >> 1).Used for inharmonic pitch estimationand for estimation of plucking position on the fretted string.
-	unsigned int nbOfHarmonicsInit = 5;     // number of harmonics for initial harmonic estimate(B = 0).
+	double       segmentDuration   = 40e-3;       // segment duration in seconds.
+	double       LOpen             = 64.3;        // assumed length of all open strings.
+	unsigned int highNbOfHarmonics = 25;          // assumed high number of harmonics(M >> 1).Used for inharmonic pitch estimationand for estimation of plucking position on the fretted string.
+	unsigned int nbOfHarmonicsInit = 5;           // number of harmonics for initial harmonic estimate(B = 0).
 	unsigned int f0LimitsInf       = 75;
-	unsigned int f0LimitsSup       = 700;   // boundaries for f0 search grid in Hz.
-	float        lengthFFT         = pow(2,19);   // Length of  zero - padded FFT.
-	float        betaRes           = 1e-5;  // resolution of search grid for B.
+	unsigned int f0LimitsSup       = 700;         // boundaries for f0 search grid in Hz.
+	double       lengthFFT         = pow(2,19);   // Length of  zero - padded FFT.
+	double       betaRes           = 1e-5;        // resolution of search grid for B.
 
 	//onset
 	int counter;
@@ -202,9 +179,11 @@ private:                                                                        
 	int thresholdValue;
 	bool onsetdetected;
 	std::vector<float> newSegment;
+	std::vector<float> onsetScope;//just for working
+	bool detectionDone;
+	std::vector<double> storageSparse; //number of frame store for onset
 
 	//analyser//
-
 	result DataScope;
 	result DataScopeFifo;
 
@@ -214,6 +193,7 @@ private:                                                                        
 	bool scopeDataIsPlayed[SCOPESIZE];           //The scopeData float array of size 512 will contain the points to display on the screen.
 	int scopeDataFret[SCOPESIZE];
 	int scopeDataString[SCOPESIZE];
+	float scopeDataOnset[SCOPESIZE];//just for working
 
 	int counterAnalyser;
 
@@ -225,10 +205,13 @@ private:                                                                        
 	//tempo
 	std::vector<float> DataLastBuffer;
 
+
+
+
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Jacode_iiiAudioProcessor)
 };
 
 
 
 
-
+//void ProcessWithLowCPUDetector(const float* data, int bufSize, int sampleRate);
