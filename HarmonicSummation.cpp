@@ -104,11 +104,11 @@ double HarmonicSummation(const std::vector<float>& SegmentFFT,  unsigned int f0L
 
 void HarmonicIndex(const std::vector<float>&  SegmentFFT, unsigned int sampleRate, unsigned int nbOfHarmonicsInit, double f0Area, std::vector<int>& harmonics)
 {
-	double NFFT = SegmentFFT.size();
+	size_t NFFT = SegmentFFT.size();
 
-	for (int i = 1; i < nbOfHarmonicsInit+1; ++i)
+	for (unsigned int i = 1; i < nbOfHarmonicsInit+1; ++i)
 	{
-		harmonics[i - 1.0] = (round((i * f0Area) * (2 * NFFT / sampleRate)));//*2 to get 2^19
+		harmonics[i - 1] = (round((i * f0Area) * (2.0 * NFFT / sampleRate)));//*2 to get 2^19
 	}
 	
 }

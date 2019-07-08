@@ -4,6 +4,6 @@
 
 #include <vector>
 
-void InharmonicSummation(std::vector<float>& const SegmentFFT, float pitchInitial, unsigned int highNbOfHarmonics, unsigned int sampleRate, double maxBetaGrid, double minBetaGrid, float betaRes, float lengthFFT, float& pitchEstimate, float& BEstimate, float& costFunctionMaxVal);
+void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitial, unsigned int highNbOfHarmonics, unsigned int sampleRate, double maxBetaGrid, double minBetaGrid, double betaRes, double lengthFFT, float& pitchEstimate, float& BEstimate, float& costFunctionMaxVal);
 
 #endif // INHARMONIC_INCLUDED

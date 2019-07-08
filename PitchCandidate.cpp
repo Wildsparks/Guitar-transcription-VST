@@ -1,8 +1,9 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PitchCandidate.h"
 #include <limits>
+#include <iostream>
 #include <D:/ecler/Documents/Cours/Ingenieur_4A/Stage/Jacode_III/Source/package eigen/Eigen/Dense>
 
-void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<float> pitchReference, int nbString)
+void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<double> pitchReference, int nbString)
 {
 	double minVal(std::numeric_limits<double>::max());
 	int  minIndex(0);
@@ -18,13 +19,14 @@ void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::
 
 	int fretFind(floor(minIndex / nbString));
 	int stringFind(minIndex % nbString);
+
 	Eigen::MatrixXd Candidate(3, 2);
 	Candidate(0, 0) = stringFind;
 	Candidate(0, 1) = fretFind;
-	Candidate(1, 0) = 0;
-	Candidate(1, 1) = 0;
-	Candidate(2, 0) = 0;
-	Candidate(2, 1) = 0;
+	Candidate(1, 0) = 98;//impossible value
+	Candidate(1, 1) = 98;
+	Candidate(2, 0) = 98;
+	Candidate(2, 1) = 98;
 
 	switch (stringFind)
 	{
@@ -204,10 +206,18 @@ void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::
 	}
 
 	finalCandidate.resize(3);
+	if (Candidate(2, 0) == 98)
+	{
+		finalCandidate.pop_back();
+	}
+	if (Candidate(1, 0) == 98)
+	{
+		finalCandidate.pop_back();
+	}
 
-	for (int j = 0; j < 3; ++j)
+	for (int j = 0; j < finalCandidate.size(); ++j)
 	{
 		finalCandidate[j] = Candidate(j, 0)+Candidate(j, 1)*6;
 	}
-	sort(finalCandidate.begin(), finalCandidate.end());
+	//sort(finalCandidate.begin(), finalCandidate.end());
 }

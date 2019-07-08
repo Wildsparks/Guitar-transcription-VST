@@ -4,8 +4,8 @@
 
 using namespace Eigen;
 
-#define NOMBRE_ESTIMATION 500 //5000
-# define M_PI 3.14159265358979323846
+//#define NOMBRE_ESTIMATION 5000 //5000 // in the .h
+# define M_PI 3.141592653589793238462643383279502884197169399
 
 struct Model;
 
@@ -17,7 +17,6 @@ double std_dev(ArrayXd vec)
 
 MatrixXd covariance(MatrixXd mat)
 {
-
 	MatrixXd centered = mat.rowwise() - mat.colwise().mean();
 	MatrixXd cov = (centered.adjoint() * centered) / double(mat.rows() - 1.0);
 	return cov;
@@ -25,34 +24,34 @@ MatrixXd covariance(MatrixXd mat)
 
 double Vect_Mat_Vect(VectorXd A, MatrixXd C, VectorXd B)
 {
-	return B(1) * C(1, 1) * A(1) + B(0) * C(1, 0) * A(1) + B(1) * C(0.1) * A(0) + B(0) * C(0, 0) * A(0);
+	//return B(1) * C(1, 1) * A(1) + B(0) * C(1, 0) * A(1) + B(1) * C(0,1) * A(0) + B(0) * C(0, 0) * A(0);
+	return(A.transpose() * C * B);
 }
 
 double JClassifier(VectorXd mu, MatrixXd C, double P, VectorXd X)
 {
 	MatrixXd CI = C.inverse();
 
-	return -log(C.determinant()) + 2 * log(P) - Vect_Mat_Vect(mu, CI, mu) + 2 * Vect_Mat_Vect(X, CI, mu) - Vect_Mat_Vect(X, CI, X);
+	return -log(C.determinant()) + 2.0 * log(P) - Vect_Mat_Vect(mu, CI, mu) + 2.0 * Vect_Mat_Vect(X, CI, mu) - Vect_Mat_Vect(X, CI, X);
 }
 
 
-Model Calcul_parametre()
+Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 {
 	//randn
-	std::default_random_engine generator;
-	std::normal_distribution<double> distribution(0.0, 1.0);
+	std::mt19937 generator; //same as matlab
+	std::normal_distribution<float> distribution(0.0, 1.0);
 	//-------------------------------//
-	double percentageStd = 0.00005;
-	double number = distribution(generator);
+	double percentageStd = pow(0.005,2.0);//0.00183620;
 	double P(1.0 / 3.0);
 	double force(0.05);
 	double Esteel = 2.27e11; // Young's modulus for steel
 	double G = 79.3e9; // known shear modulus steel
-	double rhoCore = 7950; //[kg/m^3]
-	double rhoWrapping = 6000; //[kg/m^3]
+	double rhoCore = 7950.0; //[kg/m^3]
+	double rhoWrapping = 6000.0; //[kg/m^3]
 
 	VectorXd distanceFactor(6);
-	distanceFactor << 1, 2, 9, 4, 5, 2;
+	distanceFactor << 1.0, 2.0, 9.0, 4.0, 5.0, 2.0;
 
 	VectorXd L0(6);
 	for (int i = 0; i < 6; i++)
@@ -91,7 +90,7 @@ Model Calcul_parametre()
 
 
 	VectorXd T0(6);
-	T0 << 16.5, 16, 17.5, 18.5, 20, 17;
+	T0 << 16.5, 16.0, 17.5, 18.5, 20.0, 17.0;
 	T0 *= 4.45;
 
 	////-------------------------------------------////
@@ -111,7 +110,7 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				mL0(j, i) = L0(j) * pow(2, -fretNdx(i) / 12);
+				mL0(j, i) = L0(j) * pow(2.0, -fretNdx(i) / 12.0);
 			}
 		}
 
@@ -154,7 +153,7 @@ Model Calcul_parametre()
 		VectorXd ACore(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			ACore(j) = M_PI * pow((dCore(j) / 2), 2); /*(pi* dCore. ^ 2) / 4;% Crosssection core[m ^ 2]*/
+			ACore(j) = M_PI * pow((dCore(j) / 2.0), 2.0); /*(pi* dCore. ^ 2) / 4;% Crosssection core[m ^ 2]*/
 		}
 
 		// Mass - per - unit length
@@ -163,7 +162,7 @@ Model Calcul_parametre()
 		VectorXd mu(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			mu(j) = ACore(j) * rhoCore + rhoWrapping * (pow((2 * dWrapping(j) + dCore(j)), 2) - pow(dCore(j), 2)) * (M_PI / 4);
+			mu(j) = ACore(j) * rhoCore + rhoWrapping * (pow((2.0 * dWrapping(j) + dCore(j)), 2.0) - pow(dCore(j), 2.0)) * (M_PI / 4.0);
 		}
 
 		//Calculating deltaL from material properties
@@ -179,7 +178,7 @@ Model Calcul_parametre()
 		VectorXd Tc(6);
 		for (int j = 0; j < numStrings; j++)
 		{
-			Tc(j) = T0(j) / ((1 / TcOverTw(j)) + 1.0);
+			Tc(j) = T0(j) / ((1.0 / TcOverTw(j)) + 1.0);
 		}
 
 		VectorXd Tw(6);
@@ -216,7 +215,7 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				deltaP(j, i) = pow(((mL0(j, i) * P * force * (1 - P)) / T0(j)), 2);
+				deltaP(j, i) = pow(((mL0(j, i) * P * force * (1.0 - P)) / T0(j)), 2.0);
 			}
 		}
 
@@ -227,7 +226,7 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				deltaDeltaL(j, i) = sqrt(pow((P * mL0(j, i)), 2) + pow(deltaP(j, i), 2)) + sqrt(pow((1 - P) * mL0(j, i), 2) + pow(deltaP(j, i), 2)) - mL0(j, i);
+				deltaDeltaL(j, i) = sqrt(pow((P * mL0(j, i)), 2.0) + pow(deltaP(j, i), 2.0)) + sqrt(pow((1.0 - P) * mL0(j, i), 2.0) + pow(deltaP(j, i), 2.0)) - mL0(j, i);
 			}
 		}
 
@@ -249,7 +248,7 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				K(j, i) = (pow(M_PI, 3) * Eeff(j, i) * pow(dCore(j), 2)) / (16 * T0(j) * pow(mL0(j, i), 2));
+				K(j, i) = (pow(M_PI, 3.0) * Eeff(j, i) * pow(dCore(j), 2.0)) / (16.0 * T0(j) * pow(mL0(j, i), 2.0));
 			}
 		}
 		//K = -(pi^3 * Eeff .* dCore.^2) ./ (16 * T0 .* L0.^1);
@@ -270,9 +269,9 @@ Model Calcul_parametre()
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				BIntrinsicForOneEstimation(j, i) = (K(j, i) / 4) * pow(dCore(j), 2);
-				BPluckForOneEstimation(j, i) = ((K(j, i) * 3) / 8) * pow(deltaHalf(j, i), 2);
-				f0ForOneEstimation(j, i) = sqrt(T0(j) / mu(j)) / mL0(j, i) / 2;
+				BIntrinsicForOneEstimation(j, i) = (K(j, i) / 4.0) * pow(dCore(j), 2.0);
+				BPluckForOneEstimation(j, i) = ((K(j, i) * 3.0) / 8.0) * pow(deltaHalf(j, i), 2.0);
+				f0ForOneEstimation(j, i) = sqrt(T0(j) / mu(j)) / mL0(j, i) / 2.0;
 			}
 		}
 
@@ -299,7 +298,6 @@ Model Calcul_parametre()
 
 	//------CLASSIFIER-----//
 
-	MatrixXd featureMatrix[NOMBRE_ESTIMATION];
 	Model classifier;
 
 	int kk = 0;
@@ -361,6 +359,7 @@ Model Calcul_parametre()
 			}
 
 			classifier.Sigma[kk] = covariance(covMatrixTemp);
+
 			W(kk) = double(1.0 / (numStrings * (numFrets + 1.0)));
 
 			kk = kk + 1;

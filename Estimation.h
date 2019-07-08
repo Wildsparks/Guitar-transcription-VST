@@ -5,7 +5,7 @@
 #include <iostream>
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Source\package eigen\Eigen\Dense"
 #include <random>
-
+#define NOMBRE_ESTIMATION 500
 struct Model
 {
 	Eigen::MatrixXd Mu;//2*78
@@ -14,6 +14,6 @@ struct Model
 };
 
 double JClassifier(Eigen::VectorXd mu, Eigen::MatrixXd C, double P, Eigen::VectorXd X);
-Model Calcul_parametre();
+Model Calcul_parametre(Eigen::MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION]);
 
 #endif // ESTIMATION_INCLUDED

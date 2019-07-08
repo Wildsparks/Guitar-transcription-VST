@@ -2,6 +2,6 @@
 #ifndef PLUCKINGPOSITIONESTIMATORLSD_INCLUDED
 #define PLUCKINGPOSITIONESTIMATORLSD_INCLUDED
 #include <vector>
-float PluckingPositionEstimatorLSD(std::vector<float> amplitudesAbs, double L);
+double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L);
 
 #endif // PLUCKINGPOSITIONESTIMATORLSD_INCLUDED#pragma once
