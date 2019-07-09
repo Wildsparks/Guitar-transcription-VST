@@ -4,6 +4,6 @@
 
 #include <vector>
 
-double HarmonicSummation(const std::vector<float>& SegmentFFT, unsigned int f0LimitsInf, unsigned int f0LimitsSup, unsigned int nbOfHarmonicsInit, unsigned int sampleRate);
+double HarmonicSummation(const std::vector<float>& SegmentFFT, int f0LimitsInf, int f0LimitsSup, int nbOfHarmonicsInit, double sampleRate);
 
 #endif // HARMONICSUMMATION_INCLUDED

@@ -4,6 +4,6 @@
 
 #include <vector>
 
-void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<double> pitchReference, int nbString);
+void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<float> pitchReference, int nbString);
 
 #endif // PITCHCANDIDATE_INCLUDED

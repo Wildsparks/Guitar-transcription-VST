@@ -5,5 +5,5 @@
 #include <D:/ecler/Documents/Cours/Ingenieur_4A/Stage/Jacode_III/Source/package eigen/Eigen/Dense>
 #include <vector>
 
-std::vector<double>  AmplitudesEstimation(std::vector<std::complex<double>> const& segment, double f0Features, double betaFeatures, int lengthOfSegment, unsigned int sampleRate, unsigned int highNbOfHarmonics);
+std::vector<double>  AmplitudesEstimation(std::vector<std::complex<float>> const& segment, float f0Features, float betaFeatures, int lengthOfSegment, int sampleRate, int highNbOfHarmonics);
 #endif // AMPLITUDESESTIMATION_INCLUDED

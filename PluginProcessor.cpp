@@ -13,17 +13,66 @@
 
 using namespace std;
 
-#define M_PI 3.141592653589793238460
+#define M_PI       3.141592653589793238460
 #define TIMEBUFFER 0.04
-#define SCOPESIZE 4096
-#define NBFRET 12
-#define NBSTRING 6
+#define TIMEFRAME  0.001
+#define SCOPESIZE  4096
+#define NBFRET     12
+#define NBSTRING   6
 
 struct Model;
 struct result;
 
 //==============================================================================////==============================================================================//
 Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor constructor
+
+	//-------first--step-------//
+
+	//--------//onset//--------//
+	
+	counterOnset  (0),
+	thresholdValue(0),
+
+	storageSparse(120, 0),
+	storageActual(1, 0),
+	storagePast  (1, 0),
+	newSegment   (1, 0),
+	onsetScope   (1, 0),
+
+	detectionDone(false),
+	onsetdetected(false),
+
+	timeOfOnset(1, 0),
+
+	//-------second-step-------//
+
+	//--------//pitch//--------//
+
+	f0LimitsInf (75),
+	f0LimitsSup (700),         // boundaries for f0 search grid in Hz.
+	nbOfHarmonicsInit(5),      // number of harmonics for initial harmonic estimate(B = 0).
+
+
+
+
+
+
+
+
+	//-------final-step-------//
+
+	//--------//plot//--------//
+
+	DataScope(),
+	DataScopeFifo(),
+	nextFFTBlockReady(false),
+
+
+
+
+
+
+
 
 	//input buffer//
 	X(2),
@@ -46,31 +95,25 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 	prediction(0),
 
 	//onset//
-	counter(0),
-	thresholdValue(0),
-	onsetdetected(false),
-	detectionDone(false),
-	newSegment(1, 0),
+	
+	
 
-	storageSparse(120, 0),
-	storageActual(1, 0),
-	storagePast(1, 0),
+
+
+
 
 	//moi
 	afficheValue(10),
-	DataLastBuffer(192000, 0),
 
-	//affichage
-	counterAnalyser(0),
-	nextFFTBlockReady(false),
+
+
+	
 
 	//result
 	stringPlayed(0),
 	fretPlayed(0),
-	timeOfOnset(1, 0),
-	onsetScope(10, 0.0f), //just for working
-	DataScope(),
-	DataScopeFifo(),
+
+
 
 #ifndef JucePlugin_PreferredChannelConfigurations
       AudioProcessor (BusesProperties()
@@ -102,7 +145,6 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 		scopeDataString[i] = 0;
 		scopeDataOnset[i] = 0.0f;//just for working
 	}
-
 
 	//==============================================================================//
 
@@ -170,7 +212,7 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 				{
 					data[j] = pointerData[j + i * buffsize];
 				}
-				ProcessWithSpectrogramOnsetDetector(&data[0], buffsize, (int)getSampleRate());
+				ProcessWithSpectrogramOnsetDetector(&data[0], buffsize, getSampleRate());
 			}
 
 			//===================================//
@@ -186,7 +228,7 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 //=================================TEST=========================================////==============================================================================//
 //==============================================================================////==============================================================================//
 
-double Jacode_iiiAudioProcessor::getAfficheValue()
+float Jacode_iiiAudioProcessor::getAfficheValue()
 {
 	return(afficheValue);
 }
@@ -197,70 +239,57 @@ double Jacode_iiiAudioProcessor::getAfficheValue()
 
 void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* data, int bufSize, int sampleRate)
 {
-	int    segmentSize = TIMEBUFFER * sampleRate; //40ms en sample
-	int    frameSize   = 0.001 * sampleRate;        //1ms en sample
-	int    prediction   (0);
-	double time         (-0.040 * 2.0); //decay time because of storing
+	int    segmentSize (TIMEBUFFER * sampleRate); //40ms in sample
+	int    frameSize   (TIMEFRAME  * sampleRate); //1ms in sample
+	int    Noteprediction  (0);
+	float time        (-0.040 * 2.0);            //decay time because of storing
 
-	Onset(data, bufSize, sampleRate, timeOfOnset, counter, storageActual, storagePast, thresholdValue, onsetScope, detectionDone, storageSparse);
-
+	Onset(data, bufSize, sampleRate, timeOfOnset, counterOnset, storageActual, storagePast, thresholdValue, onsetScope, detectionDone, storageSparse);
+	
 	if (detectionDone)//many buffer are just store => predictions aren't done every time we get buffer but every time we get 40ms.
 	{
 
-		int index = 40;
+		int index = 40; //decay for take temporal sample from the time onset is detect
 
 		for (int i = 0; i < timeOfOnset.size(); ++i)
 		{
-			time += 0.001;
+			time += TIMEFRAME; 
 			if (timeOfOnset[i] == true) //detection of an Onset
 			{
 
 				if (onsetdetected == false)
 				{
-					//std::cout << std::endl;
-					//std::cout << "hey ! an onset at : " << time << " secondes";
 					onsetdetected = true;
 					newSegment.clear();
 
 					for (int j = 0; j < frameSize; ++j)//fill with the first frame
 					{
-						newSegment.push_back(storagePast[(i * frameSize + j + index * frameSize)]);
+						newSegment.push_back(storagePast[(((int)i + (int)index) * (int)frameSize + (int)j)]);
 					}
 
 				}
 				else if (newSegment.size() < segmentSize)//if a new onset is detect earlier
 				{
 
-					prediction = FretStringPrediction(newSegment);
-					fretPlayed = (unsigned int)floor(prediction / NBSTRING);
-					stringPlayed = prediction % NBSTRING;
-
-					//std::cout << std::endl;
-					//std::cout << " fret played : " << fretPlayed << "eme  //  ";
-					//std::cout << " string played : " << stringPlayed << "eme" << std::endl;
+					Noteprediction = FretStringPrediction(newSegment);
+					fretPlayed = (unsigned int)floor(Noteprediction / NBSTRING);
+					stringPlayed = Noteprediction % NBSTRING;
 
 					newSegment.clear(); //we create a new segment
 
-					//std::cout << std::endl;
-					//std::cout << "hey ! an onset overlap at : " << time << " secondes";
-
-					for (int j = 0; j < frameSize; ++j)
+					for (int j = 0; j < frameSize; ++j)//we continue to fill the new segment
 					{
-						newSegment.push_back(storagePast[(i * frameSize + j + index * frameSize)]);
+						newSegment.push_back(storagePast[(((int)i + (int)index) * (int)frameSize + (int)j)]);
 					}
 
-					//we continue to fill the new segment
+					
 
 				}
-				else // no new onset and the segment have its 40ms but this will never arrive normaly cause we will not detect between 40ms buffer
+				else // no new onset and the segment have its 40ms but this will never arrive normaly cause we will not detect between 40ms buffers
 				{
-					prediction = FretStringPrediction(newSegment);
-					fretPlayed = (unsigned int)floor(prediction / NBSTRING);
-					stringPlayed = prediction % NBSTRING;
-
-					//std::cout << std::endl;
-					//std::cout << "normalement ce message n'est pas sense etre la  // la fret jouer est la " << fretPlayed << "eme  //  ";
-					//std::cout << " la corde jouer est la " << stringPlayed << "eme" << std::endl;
+					Noteprediction = FretStringPrediction(newSegment);
+					fretPlayed = (unsigned int)floor(Noteprediction / NBSTRING);
+					stringPlayed = Noteprediction % NBSTRING;
 
 					newSegment.clear();
 					onsetdetected = false;
@@ -269,24 +298,20 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 			else
 			{
 
-				if ((newSegment.size() < segmentSize) && (onsetdetected == true)) // no detection and no 40ms so just fill the segment
+				if ((newSegment.size() < segmentSize) && (onsetdetected == true)) // no detection and no 40ms : just fill the segment
 				{
 					for (int j = 0; j < frameSize; ++j)
 					{
-						newSegment.push_back(storagePast[(i * frameSize + j + index * frameSize)]);
+						newSegment.push_back(storagePast[(((int)i+(int)index) * (int)frameSize + (int)j)]);
 					}
 
 				}
-				else if (onsetdetected == true) //segment ready so predict and clear
+				else if (onsetdetected == true) //segment ready : predict and clear
 				{
 
-					prediction = FretStringPrediction(newSegment);
-					stringPlayed = prediction % NBSTRING;
-					fretPlayed = (int)floor(prediction / NBSTRING);
-
-					//std::cout << std::endl;
-					//std::cout << " fret played : " << fretPlayed << "eme  //  ";
-					//std::cout << " string played : " << stringPlayed << "eme" << std::endl;
+					Noteprediction = FretStringPrediction(newSegment);
+					stringPlayed = Noteprediction % NBSTRING;
+					fretPlayed = (int)floor(Noteprediction / NBSTRING);
 
 					onsetdetected = false;
 					newSegment.clear();
@@ -299,7 +324,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 
 			}
 
-			if (isnan(onsetScope[i]))
+			if (isnan(onsetScope[i])) //to prevent error
 			{
 				pushNextSampleIntoFifo(timeOfOnset[i], fretPlayed, stringPlayed, (4096), 0);
 			}
@@ -311,7 +336,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 		}  //----------------//end process//----------------//
 
 	}      //----------------//endif onset//----------------//
-
+	
 }
 
 //==============================================================================//
@@ -333,7 +358,7 @@ void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(bool isPlayed, int fretPla
 			DataScopeFifo.isPlayed.clear();
 			DataScopeFifo.Onset.clear();
 
-			for (int i = 0; i < size;i++)
+			for (int i = 0; i < size;++i)
 			{
 				DataScope.Fret.push_back(0);
 				DataScope.String.push_back(0);
@@ -351,10 +376,10 @@ void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(bool isPlayed, int fretPla
 		std::rotate(DataScopeFifo.isPlayed.begin(), DataScopeFifo.isPlayed.begin() + 1, DataScopeFifo.isPlayed.end());
 		std::rotate(DataScopeFifo.Onset.begin(),    DataScopeFifo.Onset.begin() + 1,    DataScopeFifo.Onset.end());
 
-		DataScopeFifo.isPlayed[(int64)size - (int64)1] = isPlayed;
-		DataScopeFifo.String  [(int64)size - (int64)1] = stringPlayed;
-		DataScopeFifo.Fret    [(int64)size - (int64)1] = fretPlayed;
-		DataScopeFifo.Onset   [(int64)size - (int64)1] = onsetValue;
+		DataScopeFifo.isPlayed[(int)size - (int)1] = isPlayed;
+		DataScopeFifo.String  [(int)size - (int)1] = stringPlayed;
+		DataScopeFifo.Fret    [(int)size - (int)1] = fretPlayed;
+		DataScopeFifo.Onset   [(int)size - (int)1] = onsetValue;
 
 		DataScope.Fret     = DataScopeFifo.Fret;
 		DataScope.String   = DataScopeFifo.String;
@@ -369,21 +394,21 @@ void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(bool isPlayed, int fretPla
 		std::rotate(DataScopeFifo.isPlayed.begin(), DataScopeFifo.isPlayed.begin() + 1, DataScopeFifo.isPlayed.end());
 		std::rotate(DataScopeFifo.Onset.begin(),    DataScopeFifo.Onset.begin() + 1,    DataScopeFifo.Onset.end());
 
-		DataScopeFifo.isPlayed[(int64)size - (int64)1] = isPlayed;
-		DataScopeFifo.String  [(int64)size - (int64)1] = stringPlayed;
-		DataScopeFifo.Fret    [(int64)size - (int64)1] = fretPlayed;
-		DataScopeFifo.Onset   [(int64)size - (int64)1] = onsetValue;
+		DataScopeFifo.isPlayed[(int)size - (int)1] = isPlayed;
+		DataScopeFifo.String  [(int)size - (int)1] = stringPlayed;
+		DataScopeFifo.Fret    [(int)size - (int)1] = fretPlayed;
+		DataScopeFifo.Onset   [(int)size - (int)1] = onsetValue;
 	}
 }
 
 void Jacode_iiiAudioProcessor::drawNextFrameOfSpectrum()
 {
-	for (int i = 0; i < SCOPESIZE; i++)
+	for (int i = 0; i < SCOPESIZE; ++i)
 	{
-		scopeDataIsPlayed[i]   = DataScope.isPlayed[(__int64)floor(i * DataScope.isPlayed.size() / SCOPESIZE)];
-		scopeDataString[i]     = DataScope.String  [(__int64)floor(i * DataScope.String.size()   / SCOPESIZE)];
-		scopeDataFret[i]       = DataScope.Fret    [(__int64)floor(i * DataScope.Fret.size()     / SCOPESIZE)];
-		scopeDataOnset[i]      = DataScope.Onset   [(__int64)floor(i * DataScope.Onset.size()    / SCOPESIZE)];
+		scopeDataIsPlayed[i]   = DataScope.isPlayed[(int)floor(i * DataScope.isPlayed.size() / SCOPESIZE)];
+		scopeDataString[i]     = DataScope.String  [(int)floor(i * DataScope.String.size()   / SCOPESIZE)];
+		scopeDataFret[i]       = DataScope.Fret    [(int)floor(i * DataScope.Fret.size()     / SCOPESIZE)];
+		scopeDataOnset[i]      = DataScope.Onset   [(int)floor(i * DataScope.Onset.size()    / SCOPESIZE)];
 	}
 }
 
@@ -399,10 +424,10 @@ void Jacode_iiiAudioProcessor::setNextFFTBlockReady(bool value)
 
 void Jacode_iiiAudioProcessor::drawFrame(Graphics& g)
 {
-	for (int i = 1; i < SCOPESIZE; i++)
+	for (int i = 1; i < SCOPESIZE; ++i)
 	{
-		auto width = 1600;
-		auto height = 600;
+		int width = 1600;
+		int height = 600;
 
 		if (scopeDataIsPlayed[i])
 		{
@@ -428,13 +453,51 @@ void Jacode_iiiAudioProcessor::setThresholdValue(int value)
 //==============================================================================//
 //================================Prediction====================================//
 //==============================================================================//
+int Jacode_iiiAudioProcessor::FretStringPrediction(const std::vector<float>& segment)
+{
+	float f0Features(0);
+	float betaFeatures(0);
+
+	std::vector<float> processSegment;
+	std::vector<std::complex<float>> hilberOutput;
+	processSegment = segment;
+
+	Preprocessing(processSegment, hilberOutput);
+
+	float pitch = PitchEstimator(processSegment);
+
+	std::vector<int> listOfCandidate = BetaEstimator(processSegment, pitch, pitchReference, f0Features, betaFeatures);
+
+	X(0) = f0Features;
+	X(1) = betaFeatures;
+
+	int position(0);
+
+	JMatrix.resize(listOfCandidate.size());
+	for (int k = 0; k < listOfCandidate.size(); k++)
+	{
+		int indexCandidat = listOfCandidate[k];
+		mu(0) = classifier.Mu(0, indexCandidat);
+		mu(1) = classifier.Mu(1, indexCandidat);
+		C = classifier.Sigma[indexCandidat];
+		P = classifier.W(indexCandidat);
+
+		JMatrix(k) = JClassifier(mu, C, P, X);
+
+	}
+	JMatrix.maxCoeff(&position);
+
+	afficheValue = float(PluckPositionPrediction(hilberOutput, f0Features, betaFeatures, (int)floor(listOfCandidate[position] / NBSTRING)));
+
+	return (listOfCandidate[position]);
+};
 
 float Jacode_iiiAudioProcessor::PitchEstimator(const std::vector<float>& segment)
 {
-	return (HarmonicSummation(segment, f0LimitsInf, f0LimitsSup, nbOfHarmonicsInit, (int)getSampleRate()));
+	return (HarmonicSummation(segment, f0LimitsInf, f0LimitsSup, nbOfHarmonicsInit, getSampleRate()));
 };
 
-std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float>& segment, float observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures)
+std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float>& segment, float observedPitch, std::vector<float> pitchReference, float& f0Features, float& betaFeatures)
 {
 	std::vector<int> finalCandidate;
 
@@ -486,46 +549,7 @@ std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float
 	return(finalCandidate);
 };
 
-int Jacode_iiiAudioProcessor::FretStringPrediction(const std::vector<float>& segment)
-{
-	double f0Features(0);
-	double betaFeatures(0);
-
-	std::vector<float> processSegment;
-	std::vector<std::complex<double>> hilberOutput;
-	processSegment = segment;
-
-	Preprocessing(processSegment, hilberOutput);
-
-	float pitch = PitchEstimator(processSegment);
-
-	std::vector<int> listOfCandidate = BetaEstimator(processSegment, pitch, pitchReference, f0Features, betaFeatures);
-
-	X(0) = f0Features;
-	X(1) = betaFeatures;
-
-	int position(0);
-
-	JMatrix.resize(listOfCandidate.size());
-	for (int k = 0; k < listOfCandidate.size(); k++)
-	{
-		int indexCandidat = listOfCandidate[k];
-		mu(0) = classifier.Mu(0, indexCandidat);
-		mu(1) = classifier.Mu(1, indexCandidat);
-		C = classifier.Sigma[indexCandidat];
-		P = classifier.W(indexCandidat);
-
-		JMatrix(k) = JClassifier(mu, C, P, X);
-
-	}
-	JMatrix.maxCoeff(&position);
-
-	afficheValue = double(PluckPositionPrediction(hilberOutput, f0Features, betaFeatures, (int)floor(listOfCandidate[position] / NBSTRING)));
-
-	return (listOfCandidate[position]);
-};
-
-double Jacode_iiiAudioProcessor::PluckPositionPrediction(const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed)
+float Jacode_iiiAudioProcessor::PluckPositionPrediction(const std::vector<std::complex<float>>& hilberOutput, float f0Features, float betaFeatures, int fretPlayed)
 {
 	std::vector<double> amplitudesAbs;
 	double pluckingPosition;
@@ -533,7 +557,6 @@ double Jacode_iiiAudioProcessor::PluckPositionPrediction(const std::vector<std::
 
 	amplitudesAbs = AmplitudesEstimation(hilberOutput, f0Features, betaFeatures, hilberOutput.size(), (int)getSampleRate(), highNbOfHarmonics);
 	L = LOpen * pow(2.0, (-(double)fretPlayed / 12.0));
-	//std::cout << L << std::endl;
 	pluckingPosition = PluckingPositionEstimatorLSD(amplitudesAbs, L);
 
 	return(pluckingPosition);

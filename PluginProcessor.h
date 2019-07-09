@@ -72,17 +72,17 @@ public:                                                                         
     //==============================================================================
     const String getName() const override;
 
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
+    bool   acceptsMidi() const override;
+    bool   producesMidi() const override;
+    bool   isMidiEffect() const override;
     double getTailLengthSeconds() const override;
 
     //==============================================================================
-    int getNumPrograms() override;
-    int getCurrentProgram() override;
-    void setCurrentProgram (int index) override;
+    int   getNumPrograms() override;
+    int   getCurrentProgram() override;
+    void  setCurrentProgram (int index) override;
     const String getProgramName (int index) override;
-    void changeProgramName (int index, const String& newName) override;
+    void  changeProgramName (int index, const String& newName) override;
 
     //==============================================================================
     void getStateInformation (MemoryBlock& destData) override;
@@ -109,24 +109,16 @@ public:                                                                         
 	//================================Prediction====================================//
 	//==============================================================================//
 	
-	float            Jacode_iiiAudioProcessor::PitchEstimator(const std::vector<float>& segment);
-	std::vector<int> BetaEstimator(const std::vector<float>& segment, float observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures);
-	int              FretStringPrediction(const std::vector<float>& segment);
-	double           PluckPositionPrediction(const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed);
+	float            PitchEstimator         (const std::vector<float>& segment);
+	std::vector<int> BetaEstimator           (const std::vector<float>& segment, float observedPitch, std::vector<float> pitchReference, float& f0Features, float& betaFeatures);
+	int              FretStringPrediction    (const std::vector<float>& segment);
+	float           PluckPositionPrediction (const std::vector<std::complex<float>>& hilberOutput, float f0Features, float betaFeatures, int fretPlayed);
 
 	//==============================================================================//
 	//============================Processing and test===============================//
 	//==============================================================================//
 
-
-	/*void threadPredict(std::vector<float> const& newSegment, int& prediction);
-	void Jacode_iiiAudioProcessor::OnsetThread();
-	void Jacode_iiiAudioProcessor::PredictionThread();
-	void Jacode_iiiAudioProcessor::DisplayThread();
-	void Jacode_iiiAudioProcessor::RunThread();*/
-
-	double getAfficheValue();
-
+	float getAfficheValue();
 
 	//==============================================================================//
 	//================================End method====================================//
@@ -140,7 +132,65 @@ private:                                                                        
     //================================ATTRIBUT======================================//
 	//==============================================================================//
 
-	double afficheValue;
+	//-------first--step-------//
+
+	//--------//onset//--------//
+
+	int counterOnset;
+	int thresholdValue;
+
+	std::vector<float> storageSparse;
+	std::vector<float> storageActual;
+	std::vector<float> storagePast;
+	std::vector<float> newSegment;
+	std::vector<float> onsetScope;//just for working
+
+	bool detectionDone;
+	bool onsetdetected;
+	 
+	std::vector<bool> timeOfOnset;
+
+	//-------second-step-------//
+
+	//--------//pitch//--------//
+
+	int f0LimitsInf; 
+	int f0LimitsSup;           // boundaries for f0 search grid in Hz.
+	int nbOfHarmonicsInit;     // number of harmonics for initial harmonic estimate(B = 0).
+
+	//-------third--step-------//
+
+	//---//pitch-candidate//---//
+
+
+
+
+	//-------final-step-------//
+
+	//--------//result//--------//
+
+
+	//-------final-step-------//
+
+	//--------//result//--------//
+
+	int stringPlayed;
+	int fretPlayed;
+
+	//-------final-step-------//
+
+	//--------//plot//--------//
+	bool scopeDataIsPlayed[SCOPESIZE];//The scopeData float array of size 512 will contain the points to display on the screen.
+	int scopeDataFret     [SCOPESIZE];
+	int scopeDataString   [SCOPESIZE];
+	float scopeDataOnset  [SCOPESIZE];//just for working
+	result DataScope;
+	result DataScopeFifo;
+	bool nextFFTBlockReady;
+
+
+
+	float afficheValue;
 	Model classifier;
 	Eigen::MatrixXd featureMatrix[NOMBRE_ESTIMATION];
 
@@ -157,53 +207,23 @@ private:                                                                        
 	//classifier parameters//
 	Eigen::VectorXd mu;
 	Eigen::MatrixXd C;
-	double P;
+	float P;
 	Eigen::VectorXd JMatrix;
-	double prediction;
-	std::vector<double> pitchReference;
+	float prediction;
+	std::vector<float> pitchReference;
 
 	//Initialize estimator / classifier implementation constants
-	double       segmentDuration   = 40e-3;       // segment duration in seconds.
-	double       LOpen             = 64.3;        // assumed length of all open strings.
-	unsigned int highNbOfHarmonics = 25;          // assumed high number of harmonics(M >> 1).Used for inharmonic pitch estimationand for estimation of plucking position on the fretted string.
-	unsigned int nbOfHarmonicsInit = 5;           // number of harmonics for initial harmonic estimate(B = 0).
-	unsigned int f0LimitsInf       = 75;
-	unsigned int f0LimitsSup       = 700;         // boundaries for f0 search grid in Hz.
-	double       lengthFFT         = pow(2,19);   // Length of  zero - padded FFT.
-	double       betaRes           = 1e-5;        // resolution of search grid for B.
+	float       segmentDuration   = 40e-3;       // segment duration in seconds.
+	float       LOpen             = 64.3;        // assumed length of all open strings.
+	int highNbOfHarmonics = 25;          // assumed high number of harmonics(M >> 1).Used for inharmonic pitch estimationand for estimation of plucking position on the fretted string.
 
-	//onset
-	int counter;
-	std::vector<float> storageActual;
-	std::vector<float> storagePast;
-	int thresholdValue;
-	bool onsetdetected;
-	std::vector<float> newSegment;
-	std::vector<float> onsetScope;//just for working
-	bool detectionDone;
-	std::vector<double> storageSparse; //number of frame store for onset
+	float       lengthFFT         = pow(2,19);   // Length of  zero - padded FFT.
+	float       betaRes           = 1e-5;        // resolution of search grid for B.
 
-	//analyser//
-	result DataScope;
-	result DataScopeFifo;
 
-	bool nextFFTBlockReady = false;       //This temporary boolean tells us whether the next FFT block is ready to be rendered.
-	bool newBuffer = true;
-
-	bool scopeDataIsPlayed[SCOPESIZE];           //The scopeData float array of size 512 will contain the points to display on the screen.
-	int scopeDataFret[SCOPESIZE];
-	int scopeDataString[SCOPESIZE];
-	float scopeDataOnset[SCOPESIZE];//just for working
-
-	int counterAnalyser;
 
 	//result
-	int stringPlayed;
-	int fretPlayed;
-	std::vector<bool> timeOfOnset;
 
-	//tempo
-	std::vector<float> DataLastBuffer;
 
 
 
@@ -214,4 +234,47 @@ private:                                                                        
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //void ProcessWithLowCPUDetector(const float* data, int bufSize, int sampleRate);
+
+	/*void threadPredict(std::vector<float> const& newSegment, int& prediction);
+	void Jacode_iiiAudioProcessor::OnsetThread();
+	void Jacode_iiiAudioProcessor::PredictionThread();
+	void Jacode_iiiAudioProcessor::DisplayThread();
+	void Jacode_iiiAudioProcessor::RunThread();*/

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <D:/ecler/Documents/Cours/Ingenieur_4A/Stage/Jacode_III/Source/package eigen/Eigen/Dense>
 
-void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<double> pitchReference, int nbString)
+void PitchCandidate(std::vector<int>& finalCandidate, float observedPitch, std::vector<float> pitchReference, int nbString)
 {
 	double minVal(std::numeric_limits<double>::max());
 	int  minIndex(0);

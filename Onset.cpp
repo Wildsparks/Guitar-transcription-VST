@@ -1,15 +1,17 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Onset.h"
-#include "fftw3.h"
+
+
 #define TIMEBUFFER 0.04 //40ms of observation
 
 #define REAL 0
 #define IMAG 1
 
-void onsetDetector(std::vector<float> const& storage, std::vector<bool> & timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float> & onsetScope, std::vector<double>& storageSparse);
+void onsetDetector(std::vector<float> const& storage, std::vector<bool> & timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float> & onsetScope, std::vector<float>& storageSparse);
 void onsetDetectorLowCPU(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope);
 
-void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<double>& storageSparse)
+void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<float>& storageSparse)
 {
+
 	float nbEchentillon((TIMEBUFFER * sampleRate));        
 
 	//set the first vector of storage//
@@ -44,9 +46,9 @@ void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bo
 		if (storageActual.size() == nbEchentillon)
 		{
 	
-			for (int i = 0; i < (nbEchentillon); i++)
+			for (int j = 0; j < (nbEchentillon); j++)
 			{
-				storagePast.push_back(storageActual[i]); //add the new 40ms to the old 80ms 
+				storagePast.push_back(storageActual[j]); //add the new 40ms to the old 80ms 
 			}
 
 			//120ms analysis from 20ms to 60 ms to get 40ms after and pluck excitation
@@ -65,7 +67,7 @@ void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bo
 
 }
 
-void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope, std::vector<double>& storageSparse)
+void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope, std::vector<float>& storageSparse)
 {
 
 	//time vector contain : 160ms of audio : 4*40ms
@@ -74,13 +76,13 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 	//0.5:0.75 : futur sample
 	//0.75:1.0 : sample for fft length
 
-	unsigned int gapBetweenFrame(1);     // in ms
-	unsigned int lenthOfFrame   (40);    // in ms
+	int gapBetweenFrame(1);     // in ms
+	int lenthOfFrame   (40);    // in ms
 	double       gapInSample    (double(gapBetweenFrame) * 1e-3 * double(sampleRate));
-	unsigned int nbFrame        (ceil(double(storage.size()) / double(gapInSample)));
-	unsigned int lenthFft       (lenthOfFrame * 1e-3 * sampleRate);
-	unsigned int beginFrame     (0.5* nbFrame); // future sample to fft
-	unsigned int stopFrame      (0.25 * nbFrame);
+	int nbFrame        (ceil(double(storage.size()) / double(gapInSample)));
+	int lenthFft       (lenthOfFrame * 1e-3 * sampleRate);
+	int beginFrame     (0.5* nbFrame); // future sample to fft
+	int stopFrame      (0.25 * nbFrame);
 
 	//windows//
 	std::vector<double> hann(lenthFft);
@@ -101,7 +103,7 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 
 	//Spectrogram//
 
-	for (unsigned int i = beginFrame; i < (nbFrame - stopFrame); ++i)
+	for (int i = beginFrame; i < (nbFrame - stopFrame); ++i)
 	{
 
 		for (int j = 0; j < lenthFft; ++j)
@@ -225,8 +227,8 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 	double delta(double(thresholdValue) / 100.0);          // threshold for the mean. 10 advice
 	double pointer(0);                            // index
 	double sum;
-	unsigned int beginLoop = std::max(a, alpha);
-	unsigned int endLoop = std::max(b, beta);
+	int beginLoop = std::max(a, alpha);
+	int endLoop = std::max(b, beta);
 
 	//normalization//
 	double maxx = 0;
@@ -373,7 +375,7 @@ void onsetDetectorLowCPU(std::vector<float> const& storage, std::vector<bool>& t
 
 }
 
-void Onsetold(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<double>& storageSparse)
+void Onsetold(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<float>& storageSparse)
 {
 	float nbEchentillon((TIMEBUFFER * sampleRate));
 	int nbBuffers(ceil(nbEchentillon / bufsize));                // number of buffer to store to get TIMEBUFFER miliseconde (ceil get the int sup)

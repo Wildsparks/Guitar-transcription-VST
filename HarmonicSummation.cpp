@@ -1,16 +1,15 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\HarmonicSummation.h"
 #include <algorithm>
 
-void HarmonicIndex(const std::vector<float>& SegmentFFT, unsigned int sampleRate, unsigned int nbOfHarmonicsInit, double f0Area, std::vector<int>& harmonics);
+void HarmonicIndex(const std::vector<float>& SegmentFFT, double sampleRate, int nbOfHarmonicsInit, double f0Area, std::vector<int>& harmonics);
 
-double HarmonicSummation(const std::vector<float>& SegmentFFT,  unsigned int f0LimitsInf, unsigned int f0LimitsSup, unsigned int nbOfHarmonicsInit, unsigned int sampleRate)
+double HarmonicSummation(const std::vector<float>& SegmentFFT,  int f0LimitsInf, int f0LimitsSup, int nbOfHarmonicsInit, double sampleRate)
 {
 	
 	std::vector<float> f0Grid;
-	std::vector<int> harmonics(nbOfHarmonicsInit);
+	std::vector<int>   harmonics(nbOfHarmonicsInit);
 	std::vector<float> harmonicsSum;
 	double pitch(0);
-
 	double sumHarmo(0);
 	double maxSumHarmo(0);
 
@@ -102,7 +101,7 @@ double HarmonicSummation(const std::vector<float>& SegmentFFT,  unsigned int f0L
 	return(pitch);
 }
 
-void HarmonicIndex(const std::vector<float>&  SegmentFFT, unsigned int sampleRate, unsigned int nbOfHarmonicsInit, double f0Area, std::vector<int>& harmonics)
+void HarmonicIndex(const std::vector<float>&  SegmentFFT, double sampleRate, int nbOfHarmonicsInit, double f0Area, std::vector<int>& harmonics)
 {
 	size_t NFFT = SegmentFFT.size();
 

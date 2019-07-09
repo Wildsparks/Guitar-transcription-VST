@@ -85,7 +85,7 @@ fftw_complex* HilbertFFTForward(std::vector<float>& segment);
 double* HilbertFFTBackward(fftw_complex* out);
 void LastFFTForward(std::vector<float>& segment, double* hilbertOut);
 */
-void Preprocessing(std::vector<float>& segment, std::vector<std::complex<double>>& hilbertOutput)
+void Preprocessing(std::vector<float>& segment, std::vector<std::complex<float>>& hilbertOutput)
 {
 	//=====================================================//
 	//==================Hilbert transform==================//
