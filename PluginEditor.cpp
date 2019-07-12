@@ -26,7 +26,7 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
     setSize (1600, 600);
 
 	//FPS
-	startTimerHz(60);  //interval en miliseconde divisé par 8 pour faire des 60000 / BPM / 8
+	startTimerHz(120);  //interval en miliseconde divisé par 8 pour faire des 60000 / BPM / 8
 
 	//background
 	background = ImageCache::getFromMemory(BinaryData::backgroundImage_png, BinaryData::backgroundImage_pngSize);
@@ -39,7 +39,7 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
 	addAndMakeVisible(thresholdSlider);
 	thresholdSlider.setRange(0, 100);            
 	thresholdSlider.setTextValueSuffix(" %");    
-	thresholdSlider.setValue(20);
+	thresholdSlider.setValue(5.0);
 	thresholdSlider.addListener(this);
 	thresholdSlider.setColour(Slider::textBoxTextColourId, Colours::black);
 	//--------------------------------//
@@ -103,8 +103,9 @@ void Jacode_iiiAudioProcessorEditor::timerCallback()
 		labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
 		processor.setThresholdValue((int)thresholdSlider.getValue());
 		processor.drawNextFrameOfSpectrum();
-		processor.setNextFFTBlockReady(false);
 		repaint();
+		processor.setNextFFTBlockReady(false);
+		
 	}
 
 }

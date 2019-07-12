@@ -3,11 +3,11 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Source\package eigen\Eigen\Dense"
 #include <iostream>
 
-std::vector<int> inharmonicIndex(const std::vector<float>& SegmentFFT, unsigned int sampleRate, unsigned int nBOfHarmonic, double pitch, double beta);
+std::vector<double> inharmonicIndex(const std::vector<double>& SegmentFFT, double sampleRate, int nBOfHarmonic, double pitch, double beta);
 
-void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitial, unsigned int highNbOfHarmonics, unsigned int sampleRate, double maxBetaGrid, double minBetaGrid, double betaRes, double lengthFFT, float& pitchEstimate, float& BEstimate, float& costFunctionMaxVal)
+void InharmonicSummation(const std::vector<double>& SegmentFFT, double pitchInitial, int highNbOfHarmonics, double sampleRate, double maxBetaGrid, double minBetaGrid, double betaRes, double lengthFFT, double& pitchEstimate, double& BEstimate, double& costFunctionMaxVal)
 {
-	std::vector<float> upperLowerOctave(2);
+	std::vector<double> upperLowerOctave(2);
 	std::vector<double> maxCost(2);
 	std::vector<double> pitchCandidate(2);
 	std::vector<double> betaCandidate(2);
@@ -16,11 +16,11 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 	upperLowerOctave[0] = (pitchInitial);
 
 	std::vector<double> pitchGrid;
-	double pitchWidth ( (3.0 + 3.0) / pow(2.0,18.0) * sampleRate );
+	double pitchWidth ( (3.0+3.0) / pow(2.0,18.0) * sampleRate );
 
 	int counterBeta(0);
 
-	int betaGridSize(ceil(double((maxBetaGrid - minBetaGrid) / betaRes)));
+	int betaGridSize(static_cast<int>(ceil(((maxBetaGrid) - (minBetaGrid)) / betaRes)));
 
 	for(int octave=0; octave<1; ++octave)//2 if upper octave
 	{ 
@@ -36,7 +36,7 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 		{
 			for (int k = 0; k < pitchGrid.size(); ++k)
 			{
-				std::vector<int> index = inharmonicIndex(SegmentFFT, sampleRate, highNbOfHarmonics, pitchGrid[k], i);
+				std::vector < double > index = inharmonicIndex(SegmentFFT, sampleRate, highNbOfHarmonics, pitchGrid[k], i);
 
 				while (*(index.end()-1) > SegmentFFT.size())
 				{
@@ -47,7 +47,15 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 
 				for (int m = 0; m < index.size(); ++m)
 				{
-					costFunction(counterBeta, k) += SegmentFFT[index[m]];
+					if(index[m]>=0)
+					{
+						costFunction(counterBeta, k) += SegmentFFT[index[m]] * pow(m, 2.0);
+					}
+					else
+					{
+						costFunction(counterBeta, k) += 0;
+					}
+					
 				}
 			}
 			counterBeta++;
@@ -55,8 +63,8 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 		}
 
 		maxCost[octave]=(costFunction(0, 0));
-		unsigned int indexBeta(0);
-		unsigned int indexPitch(0);
+		int indexBeta(0);
+		int indexPitch(0);
 
 		for (int i = 0; i < betaGridSize; ++i)
 		{
@@ -79,7 +87,7 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 	}//done for lower and upper octave
 	
 	int maxIndexOctave(0);
-	float maxvalueOctave(-1.0);
+	double maxvalueOctave(-1.0);
 
 	for (int i = 0; i < 1; ++i)//2 if upper octave
 	{
@@ -102,18 +110,18 @@ void InharmonicSummation(const std::vector<float>& SegmentFFT, float pitchInitia
 % will create the dimensions of the output.
 % The peaks are placed in a zero vector, on the correct frequency axis.
 */
-std::vector<int> inharmonicIndex(const std::vector<float>& SegmentFFT, unsigned int sampleRate, unsigned int nBOfHarmonic, double pitch, double beta)
+std::vector<double> inharmonicIndex(const std::vector<double>& SegmentFFT, double sampleRate, int nBOfHarmonic, double pitch, double beta)
 {
-	std::vector<double> phi((long)nBOfHarmonic + 1.0);
-	std::vector<int> index((long)nBOfHarmonic + 1.0);
+	std::vector<double> phi  (nBOfHarmonic + double(1));
+	std::vector<double> index(nBOfHarmonic + double(1));
 
-	phi[0] = pitch;
-	index[0] = round(phi[0] * (2.0 * SegmentFFT.size() / sampleRate));
+	phi  [0] = pitch;
+	index[0] = static_cast<int>(round(phi[0] * (2.0 * SegmentFFT.size() / sampleRate)));
 
-	for (unsigned int j = 1; j < (nBOfHarmonic+1); ++j)
+	for (int j = 1; j < (nBOfHarmonic+1); ++j)
 	{
-		phi[j] = pitch * (j+1.0) * sqrt(1.0 + beta * pow((j+1.0), 2.0));
-		index[j] = round(phi[j] * (2.0 * SegmentFFT.size() / sampleRate));
+		phi[j]   = pitch * (j+1.0) * sqrt(1.0 + beta * pow((j+1.0), 2.0));
+		index[j] = (round(phi[j] * (2.0 * SegmentFFT.size() / sampleRate)));
 	}
 
 	return(index);

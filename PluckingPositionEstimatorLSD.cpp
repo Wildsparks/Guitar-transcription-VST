@@ -11,14 +11,11 @@ double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L)
 	double M = amplitudesAbs.size();
 
 	std::vector<double> Cm(M);
-	//std::vector<double> D_LS(0);
 
 	double P(0);
 	double sumAmpAbsOverCm;
 	double minValue = std::numeric_limits<double>::max();
 	double result(0);
-
-	//D_LS.clear();
 
 	for (double cnt = 6.0; cnt < ceil(L / 2.0); cnt += 0.001) // search grid in cm from the bridge.
 	{
@@ -37,7 +34,6 @@ double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L)
 			sumAmpAbsOverCm += pow((10.0 * log10(amplitudesAbs[m] / Cm[m])), 2.0);
 		}
 
-		//D_LS.push_back( sqrt(1.0 / M * sumAmpAbsOverCm) );
 		if ((sqrt(1.0 / M * sumAmpAbsOverCm)) < minValue)
 		{
 			minValue = sqrt(1.0 / M * sumAmpAbsOverCm);
@@ -45,8 +41,6 @@ double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L)
 		}
 	}
 
-	//int minElementIndex = std::min_element(D_LS.begin(), D_LS.end()) - D_LS.begin();
 	return(result);
-	//return(double(minElementIndex)*0.001+6.0);
 
 }

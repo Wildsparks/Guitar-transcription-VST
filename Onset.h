@@ -10,6 +10,6 @@
 
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Functions.h"
 
-void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<float>& storageSparse);
+void Onset(const double* channelData, int bufsize, double sampleRate, std::vector<bool>& timeOfOnset, std::vector<double>& storageActual, std::vector<double>& storagePast, int const& thresholdValue, std::vector<double>& onsetScope, bool& detectionDone, std::vector<double>& storageSparse);
 
 #endif // ONSET_INCLUDED

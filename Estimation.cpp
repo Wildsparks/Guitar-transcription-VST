@@ -5,7 +5,7 @@
 using namespace Eigen;
 
 //#define NOMBRE_ESTIMATION 5000 //5000 // in the .h
-# define M_PI 3.141592653589793238462643383279502884197169399
+# define M_PI 3.1415926535897932384626433832795028841971693993751058209749445923078164
 
 struct Model;
 
@@ -39,10 +39,10 @@ double JClassifier(VectorXd mu, MatrixXd C, double P, VectorXd X)
 Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 {
 	//randn
-	std::mt19937 generator; //same as matlab
-	std::normal_distribution<float> distribution(0.0, 1.0);
+	std::default_random_engine generator; //not same as matlab
+	std::normal_distribution<double> distribution(0.0, 1.0);
 	//-------------------------------//
-	double percentageStd = pow(0.005,2.0);//0.00183620;
+	double percentageStd = 0.005;
 	double P(1.0 / 3.0);
 	double force(0.05);
 	double Esteel = 2.27e11; // Young's modulus for steel
@@ -75,14 +75,14 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 	//dFull
 	VectorXd thicknessFactor(6);
-	thicknessFactor << 0.010, 0.013, 0.0172, 0.026, 0.036, 0.046;
+	thicknessFactor << 0.010, 0.013, 0.017, 0.026, 0.036, 0.046;
 
 	VectorXd dFull(6);
 	dFull = thicknessFactor * 0.0254; //full diameter for the  strings
 
 
 	VectorXd thicknessFactorCore(6);
-	thicknessFactorCore << 0.010, 0.013, 0.0172, 0.0146, 0.016, 0.018;
+	thicknessFactorCore << 0.010, 0.013, 0.017, 0.015, 0.016, 0.018;
 
 
 	VectorXd dCore(6);
@@ -90,22 +90,39 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 
 	VectorXd T0(6);
-	T0 << 16.5, 16.0, 17.5, 18.5, 20.0, 17.0;
+	T0 << 16, 15, 17, 18, 20, 17;
 	T0 *= 4.45;
 
 	////-------------------------------------------////
 
-	MatrixXd BIntrinsic[NOMBRE_ESTIMATION];
-	MatrixXd BPluck[NOMBRE_ESTIMATION];
 	MatrixXd f0[NOMBRE_ESTIMATION];
 	MatrixXd BMixed[NOMBRE_ESTIMATION];
 
 	////-------------------------------------------////
 
-	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; nombre_estimation++)
+	MatrixXd mL0(6, 13);
+	VectorXd ACore(6);
+	VectorXd dWrapping(6);
+	VectorXd mu(6);
+	VectorXd D(6);
+	VectorXd TcOverTw(6);
+	VectorXd Tw(6);
+	VectorXd Tc(6);
+	MatrixXd deltaL(6, 13);
+	MatrixXd E(6, 13);
+	MatrixXd Eeff(6, 13);
+	MatrixXd deltaP(6, 13);
+	MatrixXd deltaDeltaL(6, 13);
+	MatrixXd deltaHalf(6, 13);
+	MatrixXd K(6, 13);
+	MatrixXd BIntrinsicForOneEstimation(6, 13);
+	MatrixXd BPluckForOneEstimation(6, 13);
+	MatrixXd f0ForOneEstimation(6, 13);
+
+	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 	{
 		//add noise to length
-		MatrixXd mL0(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -134,7 +151,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 			dCore(j) = dCore(j) + percentageStd * distribution(generator) * dCore(j);
 		}
 
-		VectorXd dWrapping((dFull - dCore) * 0.5);
+		dWrapping=((dFull - dCore) * 0.5);
 
 		//noise to dWrapping
 		for (int j = 0; j < numStrings; j++)
@@ -150,7 +167,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		///--------------CALCUL B & F0-----------------///
 		///--------------------------------------------///
 
-		VectorXd ACore(6);
+		
 		for (int j = 0; j < numStrings; j++)
 		{
 			ACore(j) = M_PI * pow((dCore(j) / 2.0), 2.0); /*(pi* dCore. ^ 2) / 4;% Crosssection core[m ^ 2]*/
@@ -159,7 +176,6 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		// Mass - per - unit length
 
 
-		VectorXd mu(6);
 		for (int j = 0; j < numStrings; j++)
 		{
 			mu(j) = ACore(j) * rhoCore + rhoWrapping * (pow((2.0 * dWrapping(j) + dCore(j)), 2.0) - pow(dCore(j), 2.0)) * (M_PI / 4.0);
@@ -167,27 +183,27 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 		//Calculating deltaL from material properties
 
-		VectorXd D(dCore + dWrapping);
+		D=(dCore + dWrapping);
 
-		VectorXd TcOverTw(6);
+		
 		for (int j = 0; j < numStrings; j++)
 		{
 			TcOverTw(j) = (8.0 * ACore(j) * pow(D(j), 3.0) * Esteel) / (G * pow(dWrapping(j), 5.0));
 		}
 
-		VectorXd Tc(6);
+		
 		for (int j = 0; j < numStrings; j++)
 		{
 			Tc(j) = T0(j) / ((1.0 / TcOverTw(j)) + 1.0);
 		}
 
-		VectorXd Tw(6);
+		
 		for (int j = 0; j < numStrings; j++)
 		{
 			Tw(j) = T0(j) / (TcOverTw(j) + 1.0);
 		}
 
-		MatrixXd deltaL(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -198,8 +214,6 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 		//calculate effective Young's modulus for all strings
 
-		MatrixXd E(6, 13);
-		MatrixXd Eeff(6, 13);
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -210,7 +224,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		}
 
 		//Transverse Displacement [Abbot, Strings in the 16th and 17th Centuries, 1974, Appendix 3]
-		MatrixXd deltaP(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -221,7 +235,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 		//Length extension
 
-		MatrixXd deltaDeltaL(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -232,7 +246,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 		//Displacement as if plucked in the middle (retaining the length extension)
 
-		MatrixXd deltaHalf(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -243,7 +257,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 		//Calculate inharmonicity factor
 
-		MatrixXd K(6, 13);
+		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -261,10 +275,6 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		//  MatrixXd f0[NOMBRE_ESTIMATION];         //
 		//  MatrixXd BMixed[NOMBRE_ESTIMATION];     //
 
-		MatrixXd BIntrinsicForOneEstimation(6, 13);
-		MatrixXd BPluckForOneEstimation(6, 13);
-		MatrixXd f0ForOneEstimation(6, 13);
-
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
@@ -275,8 +285,6 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 			}
 		}
 
-		BIntrinsic[nombre_estimation] = BIntrinsicForOneEstimation;
-		BPluck[nombre_estimation] = BPluckForOneEstimation;
 		f0[nombre_estimation] = f0ForOneEstimation;
 
 		BMixed[nombre_estimation] = BIntrinsicForOneEstimation + BPluckForOneEstimation;
@@ -302,9 +310,9 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 	int kk = 0;
 
+	MatrixXd featureMatrixForOneEstimation(2, 78);
 	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; nombre_estimation++)
 	{
-		MatrixXd featureMatrixForOneEstimation(2, 78);
 		kk = 0;
 		for (int i = 0; i <= numFrets; i++)
 		{
@@ -330,13 +338,10 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 			meanFeatureMatrix(1, kk) = 0;
 			for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 			{
-				meanFeatureMatrix(0, kk) += featureMatrix[nombre_estimation](0, kk);
-				meanFeatureMatrix(1, kk) += featureMatrix[nombre_estimation](1, kk);
+				meanFeatureMatrix(0, kk) = meanFeatureMatrix(0, kk)+(featureMatrix[nombre_estimation](0, kk) / NOMBRE_ESTIMATION);
+				meanFeatureMatrix(1, kk) = meanFeatureMatrix(1, kk)+(featureMatrix[nombre_estimation](1, kk) / NOMBRE_ESTIMATION);
 
 			}
-
-			meanFeatureMatrix(0, kk) /= NOMBRE_ESTIMATION;
-			meanFeatureMatrix(1, kk) /= NOMBRE_ESTIMATION;
 
 			kk = kk + 1;
 		}
@@ -345,12 +350,12 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 	kk = 0;
 	VectorXd W(78);
+	MatrixXd covMatrixTemp(NOMBRE_ESTIMATION, 2);
 	for (int i = 0; i <= numFrets; i++)
 	{
 		for (int j = numStrings - 1; j >= 0; j--)
 		{
-			MatrixXd covMatrixTemp(NOMBRE_ESTIMATION, 2);
-
+			
 			for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; nombre_estimation++)
 			{
 				covMatrixTemp(nombre_estimation, 0) = featureMatrix[nombre_estimation](0, kk);

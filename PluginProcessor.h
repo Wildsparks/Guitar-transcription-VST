@@ -33,7 +33,7 @@
 #define SCOPESIZE 4096
 #define NBFRET 12
 #define NBSTRING 6
-#define NOMBRE_ESTIMATION 500
+#define NOMBRE_ESTIMATION 100
 
 struct Model;
 
@@ -42,7 +42,7 @@ struct result
 	std::vector<bool> isPlayed;
 	std::vector<int> Fret;
 	std::vector<int> String;
-	std::vector<float> Onset;
+	std::vector<double> Onset;
 };
 
 //==============================================================================
@@ -92,7 +92,7 @@ public:                                                                         
 	//================================Osciloscope===================================//
 	//==============================================================================//
 
-	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, float onsetValue) noexcept;
+	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, double onsetValue) noexcept;
 	void drawNextFrameOfSpectrum();
 	bool getNextFFTBlockReady();
 	void setNextFFTBlockReady(bool value);
@@ -103,22 +103,22 @@ public:                                                                         
 	//==============================================================================//
 
 	void setThresholdValue(int value);
-	void ProcessWithSpectrogramOnsetDetector(const float* data, int bufSize, int sampleRate);
+	void ProcessWithSpectrogramOnsetDetector(const double* data, int bufSize, double sampleRate);
 
 	//==============================================================================//
 	//================================Prediction====================================//
 	//==============================================================================//
 	
-	float            PitchEstimator         (const std::vector<float>& segment);
-	std::vector<int> BetaEstimator           (const std::vector<float>& segment, float observedPitch, std::vector<float> pitchReference, float& f0Features, float& betaFeatures);
-	int              FretStringPrediction    (const std::vector<float>& segment);
-	float           PluckPositionPrediction (const std::vector<std::complex<float>>& hilberOutput, float f0Features, float betaFeatures, int fretPlayed);
+	double           PitchEstimator          (const std::vector<double>& segment);
+	std::vector<int> BetaEstimator           (const std::vector<double>& segment, double observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures);
+	int              FretStringPrediction    (const std::vector<double>& segment);
+	double           PluckPositionPrediction (const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed);
 
 	//==============================================================================//
 	//============================Processing and test===============================//
 	//==============================================================================//
 
-	float getAfficheValue();
+	double getAfficheValue();
 
 	//==============================================================================//
 	//================================End method====================================//
@@ -139,11 +139,11 @@ private:                                                                        
 	int counterOnset;
 	int thresholdValue;
 
-	std::vector<float> storageSparse;
-	std::vector<float> storageActual;
-	std::vector<float> storagePast;
-	std::vector<float> newSegment;
-	std::vector<float> onsetScope;//just for working
+	std::vector<double> storageSparse;
+	std::vector<double> storageActual;
+	std::vector<double> storagePast;
+	std::vector<double> newSegment;
+	std::vector<double> onsetScope;//just for working
 
 	bool detectionDone;
 	bool onsetdetected;
@@ -152,23 +152,55 @@ private:                                                                        
 
 	//-------second-step-------//
 
-	//--------//pitch//--------//
+	//------//prepocess//------//
 
-	int f0LimitsInf; 
-	int f0LimitsSup;           // boundaries for f0 search grid in Hz.
-	int nbOfHarmonicsInit;     // number of harmonics for initial harmonic estimate(B = 0).
+	double       lengthFFT;   // Length of  zero - padded FFT.
+	double       segmentDuration;       // segment duration in seconds.
 
 	//-------third--step-------//
 
-	//---//pitch-candidate//---//
+	//--------//pitch//--------//
+
+	int f0LimitsInf;
+	int f0LimitsSup;           // boundaries for f0 search grid in Hz.
+	int nbOfHarmonicsInit;     // number of harmonics for initial harmonic estimate(B = 0).
+
+	//--------fourth-step-------//
+
+	//------//Candidate//-------//
 
 
 
+	//--------fifth-step--------//
 
-	//-------final-step-------//
+	//------//inharmonic//------//
 
-	//--------//result//--------//
+	double betaRes;	            // resolution of search grid for B.
+	int    highNbOfHarmonics;
 
+	//--------sixth-step--------//
+
+	//------//Prediction//------//
+
+	Model classifier;
+	Eigen::VectorXd X;
+	Eigen::MatrixXd featureMatrix[NOMBRE_ESTIMATION];
+	Eigen::MatrixXd w0; 
+	Eigen::MatrixXd B;  
+	Eigen::VectorXd mu;
+	Eigen::MatrixXd C;
+	double P;
+	Eigen::VectorXd JMatrix;
+	double prediction;
+	std::vector<double> pitchReference;
+	int trueString;
+	int trueFret;
+
+	//-------seventh-step-------//
+
+	//----//pluck position//----//
+
+	double LOpen;               // assumed length of all open strings.
 
 	//-------final-step-------//
 
@@ -176,57 +208,24 @@ private:                                                                        
 
 	int stringPlayed;
 	int fretPlayed;
+	bool isPlayed;
 
 	//-------final-step-------//
 
 	//--------//plot//--------//
-	bool scopeDataIsPlayed[SCOPESIZE];//The scopeData float array of size 512 will contain the points to display on the screen.
-	int scopeDataFret     [SCOPESIZE];
-	int scopeDataString   [SCOPESIZE];
-	float scopeDataOnset  [SCOPESIZE];//just for working
-	result DataScope;
+
+	bool   scopeDataIsPlayed [SCOPESIZE];//The scopeData float array of size 512 will contain the points to display on the screen.
+	int    scopeDataFret     [SCOPESIZE];
+	int    scopeDataString   [SCOPESIZE];
+	double scopeDataOnset    [SCOPESIZE];//just for working
 	result DataScopeFifo;
-	bool nextFFTBlockReady;
+	bool   nextFFTBlockReady;
 
+	//-----miscellaneous-----//
 
+	//--------//---//--------//
 
-	float afficheValue;
-	Model classifier;
-	Eigen::MatrixXd featureMatrix[NOMBRE_ESTIMATION];
-
-	Eigen::MatrixXd w0; //= squeeze(est_f0);
-	Eigen::MatrixXd B;  //= squeeze(BCoeff);
-
-	//sweep//
-	int trueString;
-	int trueFret;
-
-	//input buffer//
-	Eigen::VectorXd X;
-
-	//classifier parameters//
-	Eigen::VectorXd mu;
-	Eigen::MatrixXd C;
-	float P;
-	Eigen::VectorXd JMatrix;
-	float prediction;
-	std::vector<float> pitchReference;
-
-	//Initialize estimator / classifier implementation constants
-	float       segmentDuration   = 40e-3;       // segment duration in seconds.
-	float       LOpen             = 64.3;        // assumed length of all open strings.
-	int highNbOfHarmonics = 25;          // assumed high number of harmonics(M >> 1).Used for inharmonic pitch estimationand for estimation of plucking position on the fretted string.
-
-	float       lengthFFT         = pow(2,19);   // Length of  zero - padded FFT.
-	float       betaRes           = 1e-5;        // resolution of search grid for B.
-
-
-
-	//result
-
-
-
-
+	double afficheValue;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Jacode_iiiAudioProcessor)
 };

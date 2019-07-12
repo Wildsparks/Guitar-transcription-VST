@@ -6,21 +6,20 @@
 #define REAL 0
 #define IMAG 1
 
-void onsetDetector(std::vector<float> const& storage, std::vector<bool> & timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float> & onsetScope, std::vector<float>& storageSparse);
-void onsetDetectorLowCPU(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope);
+void onsetDetector(std::vector<double> const& storage, std::vector<bool> & timeOfOnset, double sampleRate, int const& thresholdValue, std::vector<double> & onsetScope, std::vector<double> & storageSparse);
 
-void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<float>& storageSparse)
+void Onset(const double* channelData, int bufsize, double sampleRate, std::vector<bool>& timeOfOnset, std::vector<double>& storageActual, std::vector<double>& storagePast, int const& thresholdValue, std::vector<double>& onsetScope, bool& detectionDone, std::vector<double>& storageSparse)
 {
 
-	float nbEchentillon((TIMEBUFFER * sampleRate));        
+	double nbEchentillon((TIMEBUFFER * sampleRate));
 
 	//set the first vector of storage//
-	if ((storagePast.size() != size_t((double)nbEchentillon * 3.0)) && !detectionDone) //120 milisecond
+	if ((storagePast.size() != size_t(nbEchentillon * 3.0)) && !detectionDone) //120 milisecond
 	{
-	
+
 		storagePast.clear();
 
-		while (storagePast.size() != size_t((double)nbEchentillon * 3.0))
+		while (storagePast.size() != size_t(nbEchentillon * 3.0))
 		{
 			storagePast.push_back(0);
 		}
@@ -30,7 +29,7 @@ void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bo
 
 	if (detectionDone)
 	{
-		std::rotate(storagePast.begin(), storagePast.begin() + nbEchentillon, storagePast.end());
+		std::rotate(storagePast.begin(),storagePast.begin() + static_cast<__int64>(nbEchentillon), storagePast.end());
 
 		for (int i = 0; i < (nbEchentillon); i++)
 		{
@@ -45,7 +44,7 @@ void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bo
 
 		if (storageActual.size() == nbEchentillon)
 		{
-	
+
 			for (int j = 0; j < (nbEchentillon); j++)
 			{
 				storagePast.push_back(storageActual[j]); //add the new 40ms to the old 80ms 
@@ -67,7 +66,7 @@ void Onset(const float* channelData, int bufsize, int sampleRate, std::vector<bo
 
 }
 
-void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope, std::vector<float>& storageSparse)
+void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOfOnset, double sampleRate, int const& thresholdValue, std::vector<double>& onsetScope, std::vector<double>& storageSparse)
 {
 
 	//time vector contain : 160ms of audio : 4*40ms
@@ -76,13 +75,13 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 	//0.5:0.75 : futur sample
 	//0.75:1.0 : sample for fft length
 
-	int gapBetweenFrame(1);     // in ms
-	int lenthOfFrame   (40);    // in ms
-	double       gapInSample    (double(gapBetweenFrame) * 1e-3 * double(sampleRate));
-	int nbFrame        (ceil(double(storage.size()) / double(gapInSample)));
-	int lenthFft       (lenthOfFrame * 1e-3 * sampleRate);
-	int beginFrame     (0.5* nbFrame); // future sample to fft
-	int stopFrame      (0.25 * nbFrame);
+	int     gapBetweenFrame(1);     // in ms
+	int     lenthOfFrame   (40);    // in ms
+	double  gapInSample    (gapBetweenFrame * 1e-3 * sampleRate);
+	double  nbFrame        ((storage.size() / gapInSample));
+	int     lenthFft       (static_cast<int>(lenthOfFrame * 1e-3 * sampleRate));
+	int     beginFrame     (static_cast<int>(0.5 * nbFrame)); // future sample to fft
+	int     stopFrame      (static_cast<int>(0.25 * nbFrame));
 
 	//windows//
 	std::vector<double> hann(lenthFft);
@@ -94,33 +93,53 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 
 	fftw_complex* frameOut;
 	fftw_complex* frameIn;
-	frameIn  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft);
-	frameOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft);
+	frameIn = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * 40);
+	frameOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * 40);
 
 	fftw_plan p;
 
-	p = fftw_plan_dft_1d(lenthFft, frameIn, frameOut, FFTW_FORWARD, FFTW_ESTIMATE);
+	//p = fftw_plan_dft_1d(lenthFft, frameIn, frameOut, FFTW_FORWARD, FFTW_ESTIMATE);
+
+
+	int rank = 1;
+	int n[] = { lenthFft };
+	int howmany = 40;
+	int idist = lenthFft;
+	int odist = lenthFft;      /*  the distance in memory between the first element of the first array and the first element of the second array */
+	int istride = 1;           /* array is contiguous in memory */
+	int ostride = 1;
+	int* inembed = n, * onembed = n;
+
+	p = fftw_plan_many_dft( rank, n, howmany,
+		                    frameIn, inembed,
+                            istride, idist,
+                            frameOut,onembed,
+                            ostride, odist,
+							FFTW_FORWARD, FFTW_ESTIMATE);
+
+
 
 	//Spectrogram//
 
 	for (int i = beginFrame; i < (nbFrame - stopFrame); ++i)
 	{
-
 		for (int j = 0; j < lenthFft; ++j)
 		{
-			frameIn[j][REAL] = (storage[(i * (double)gapInSample) + j] * double(hann[j]));
-			frameIn[j][IMAG] = (0);
+			frameIn[j+ lenthFft * (i - beginFrame)][REAL] = (storage[static_cast<__int64>((i * gapInSample) + j)] * (hann[j]));
+			frameIn[j+ lenthFft * (i - beginFrame)][IMAG] = (0);
 		}
+	}
 
-		fftw_execute(p);
+	fftw_execute(p);
 
+	for (int i = 0; i < (nbFrame - stopFrame - beginFrame); ++i)
+	{
 		for (int k = 0; k < lenthFft; ++k)
 		{
-			
-			frameAbs[k] = std::abs(std::complex<long double>(frameOut[k][REAL], frameOut[k][IMAG]));
+
+			frameAbs[k] = std::abs(std::complex<long double>(frameOut[k + lenthFft * i][REAL], frameOut[k + lenthFft * i][IMAG]));
 
 		}
-		
 		spectrogram.push_back(frameAbs);
 	}
 
@@ -135,15 +154,15 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 	double J((gamma * double(lenthFft)));
 	std::vector <double> invSparsity(0);
 
-	double sumFreq2(0);
-	double sumFreq4(0);
-	double maxValueOfFrameHarmo(0);
+	double sumFreq2(0.0);
+	double sumFreq4(0.0);
+	double maxValueOfFrameHarmo(0.0);
 
 	//inverse sparsity//
 
 	for (int i = 0; i < (spectrogram.size()); ++i)
 	{
-		maxValueOfFrameHarmo = 0;
+		maxValueOfFrameHarmo = 0.0;
 
 		for (int j = 0; j < J; ++j)
 		{
@@ -153,13 +172,11 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 			}
 		}
 
-		sumFreq2 = 0;
-		sumFreq4 = 0;
+		sumFreq2 = 0.0;
+		sumFreq4 = 0.0;
 		for (int j = 0; j < J; ++j)
 		{
 			spectrogram[i][j] = spectrogram[i][j] / maxValueOfFrameHarmo; //normalize
-
-			if(spectrogram[i][j])
 
 			spectrogram[i][j] = spectrogram[i][j] * spectrogram[i][j];
 			sumFreq2 = sumFreq2 + spectrogram[i][j]; //sum(x^2)
@@ -197,47 +214,40 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 
 	//take 80ms before
 
-	for (int i = 0; i < (0.5*nbFrame); ++i)
+	for (int i = 0; i < (0.5 * nbFrame); ++i)
 	{
-		invSparsity.push_back(storageSparse[floor(storageSparse.size() - 0.75 * nbFrame)+i]);
+		invSparsity.push_back(storageSparse[storageSparse.size() - static_cast<int>(0.75 * nbFrame) + i]);
 	}
 
 	//rotate to make it causal
 
-	std::rotate(invSparsity.begin(), invSparsity.begin() + 0.25 * nbFrame, invSparsity.end());
+	std::rotate(invSparsity.begin(), invSparsity.begin() + static_cast<int>(0.25 * nbFrame), invSparsity.end());
 
 
 	//peack detection//
 
-	double q(1.0 - (float(gapBetweenFrame) / float(lenthOfFrame)));
-	double h(round(((1.0 - q) * lenthFft)));
+	double q(1.0 - (double(gapBetweenFrame) / double(lenthOfFrame)));
+	double h(round((1.0 - q) * double(lenthFft)));
 	double r(sampleRate / h);
 	double combination_width(ceil(r * lenthFft / sampleRate / 2.0));
 
-	double alpha(20.0 / (double)gapBetweenFrame); // for interval max value between a and b // 10 by default.
-	double beta(20.0 / (double)gapBetweenFrame); // for interval min value between a and b // 10 by default.
-	double a(40.0 / (double)gapBetweenFrame);      // for mean max value between a and b // 10 by default.
-	double b(40.0 / (double)gapBetweenFrame);      // for mean min value between a and b // 10 by default.
-
-	//for a and b :
-	//we choose 40 and 40 because each frame is one ms and we don't want to predict outside the 40ms of the middle of the 120ms
-	//for alpha and beta :
-	//we choose 30 and 30 to let 30ms beetween each detection which allow a tempo of 33 bip par seconde soit 2000 BPM
+	double alpha ((20.0 / (double)gapBetweenFrame));      // for interval max value between a and b // 20 by default.
+	double beta  ((20.0 / (double)gapBetweenFrame));      // for interval min value between a and b // 20 by default.
+	double a     ((40.0 / (double)gapBetweenFrame));      // for mean max value between a and b // 40 by default.
+	double b     ((00.0 / (double)gapBetweenFrame));      // for mean min value between a and b // 40 by default.
 
 	double delta(double(thresholdValue) / 100.0);          // threshold for the mean. 10 advice
-	double pointer(0);                            // index
+	int    pointer(0);                                     // index
 	double sum;
-	int beginLoop = std::max(a, alpha);
-	int endLoop = std::max(b, beta);
 
 	//normalization//
 	double maxx = 0;
 
 	for (int m = 0; m < storageSparse.size(); ++m)
 	{
-		if (maxx < invSparsity[m])
+		if (maxx < storageSparse[m])
 		{
-			maxx = invSparsity[m];
+			maxx = storageSparse[m];
 		}
 	}
 
@@ -246,7 +256,7 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 		for (int i = 0; i < invSparsity.size(); ++i)
 		{
 			invSparsity[i] = invSparsity[i] / maxx;
-			
+
 		}
 	}
 
@@ -254,19 +264,19 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 
 	timeOfOnset.clear();
 	onsetScope.clear();
-	
+
 	//peack detection computation//
-	for (int i = floor((invSparsity.size()) / 3.0); i < floor((invSparsity.size()) * 2.0 / 3.0); ++i) //40ms beacause each frame is 1ms
+	for (int i = static_cast<int>((invSparsity.size()) / 3.0); i < static_cast<int>((invSparsity.size()) * 2.0 / 3.0); ++i) //40ms beacause each frame is 1ms
 	{
 
 		sum = 0;
-		for (int j = i - a; j < i + b + 1.0; j++)
+		for (int j = static_cast<int>(i - a); j < static_cast<int>(i + b + 1.0); j++)
 		{
 			sum = sum + invSparsity[j] + delta;
 		}
 
 		maxx = 0;
-		for (int m = i - alpha; m <= i + beta; ++m)
+		for (int m = static_cast<int>(i - alpha); m <= static_cast<int>(i + beta); ++m)
 		{
 			if (maxx < invSparsity[m])
 			{
@@ -274,7 +284,7 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 			}
 		}
 
-		if ((invSparsity[i] == maxx) && (invSparsity[i] >= (sum / (a + b + 1.0 ))) && (((double)i - pointer) > combination_width))
+		if ((invSparsity[i] == maxx) && (invSparsity[i] >= (sum / (a + b + 1.0))) && (double(i - pointer) > combination_width))
 		{
 			pointer = i;
 			timeOfOnset.push_back(true);
@@ -289,153 +299,4 @@ void onsetDetector(std::vector<float> const& storage, std::vector<bool>& timeOfO
 	}
 
 
-}
-
-void onsetDetectorLowCPU(std::vector<float> const& storage, std::vector<bool>& timeOfOnset, int sampleRate, int const& thresholdValue, std::vector<float>& onsetScope)
-{
-	//easy method
-	unsigned int lengthSegment(storage.size());
-	std::vector<float> processSegment(lengthSegment);
-	std::vector<float> integrateSegment(lengthSegment);
-	std::vector<float> meanSegment(lengthSegment);
-	std::vector<float> derivateLogSegment(lengthSegment);
-
-	for (int i = lengthSegment * 0.25 - 150; i < lengthSegment * 0.5 + 151; ++i)
-	{
-		processSegment[i] = std::abs(storage[i]);
-	}
-
-	//infinity norm
-
-	for (int i = lengthSegment * 0.25 - 100; i < lengthSegment * 0.5 + 101; ++i)
-	{
-		integrateSegment[i] = *std::max_element(processSegment.begin() + i - 50, processSegment.begin() + i + 50);
-	}
-
-
-	//low pass filter
-
-	for (int i = lengthSegment * 0.25 - 50; i < lengthSegment * 0.5 + 51; ++i)
-	{
-		meanSegment[i] = std::accumulate(integrateSegment.begin() + i - 50, integrateSegment.begin() + i + 50, 0.0);
-	}
-
-
-	//peak creation
-
-	for (int i = lengthSegment * 0.25 - 50; i < lengthSegment * 0.5 + 50; ++i)
-	{
-		derivateLogSegment[i] = std::abs(meanSegment[i + 1.0] - meanSegment[i]);
-	}
-
-	//peack detection//
-
-	unsigned int combination_width(floor(1e-3 * sampleRate));// min 1ms between detection 
-	float delta(thresholdValue / 100.0);          // threshold for the mean.
-	unsigned int p(0);                            // index
-
-	//normalization//
-	float maxx = std::numeric_limits<float>::min();
-
-	for (int i = lengthSegment * 0.25 - 50; i < lengthSegment * 0.5 + 50; ++i)
-	{
-		if (maxx < derivateLogSegment[i])
-		{
-			maxx = derivateLogSegment[i];
-		}
-	}
-
-	for (int i = lengthSegment * 0.25 - 50; i < lengthSegment * 0.5 + 50; ++i)
-	{
-		derivateLogSegment[i] = (derivateLogSegment[i] / maxx);
-	}
-
-	//end normalization//
-
-	timeOfOnset.clear();
-	onsetScope.clear();
-
-	//peack detection computation//
-	for (int i = floor(0.25 * (double)lengthSegment); i < floor(0.5 * (double)lengthSegment); ++i) //40ms beacause each frame is 1ms
-	{
-
-		if ((derivateLogSegment[i] >= delta + std::accumulate(derivateLogSegment.begin() + i - 50, derivateLogSegment.begin() + i + 50, 0.0) / 101) && ((i - p) > combination_width))
-		{
-			p = i;
-			timeOfOnset.push_back(true);
-			onsetScope.push_back(derivateLogSegment[i]);
-		}
-		else
-		{
-			timeOfOnset.push_back(false);
-			onsetScope.push_back(derivateLogSegment[i]);
-		}
-
-	}
-
-}
-
-void Onsetold(const float* channelData, int bufsize, int sampleRate, std::vector<bool>& timeOfOnset, int& counter, std::vector<float>& storageActual, std::vector<float>& storagePast, int const& thresholdValue, std::vector<float>& onsetScope, bool& detectionDone, std::vector<float>& storageSparse)
-{
-	float nbEchentillon((TIMEBUFFER * sampleRate));
-	int nbBuffers(ceil(nbEchentillon / bufsize));                // number of buffer to store to get TIMEBUFFER miliseconde (ceil get the int sup)
-
-	//set the first vector of storage//
-	if ((storagePast.size() != int(double(bufsize) * nbBuffers * 3)) && !detectionDone) //120 milisecond
-	{
-
-		storagePast.clear();
-		storageActual.clear();
-
-		while (storagePast.size() != int(double(bufsize) * nbBuffers * 3))
-		{
-			storagePast.push_back(1);
-		}
-
-	}
-	//done//
-
-	if (counter == nbBuffers)
-	{
-
-		counter = 0;
-
-		for (int i = 0; i < (bufsize * nbBuffers); i++)
-		{
-			storagePast.push_back(storageActual[i]); //add the new 40ms to the old 80ms 
-		}
-
-		//120ms analysis from 20ms to 60 ms to get 40ms after and pluck excitation
-		onsetDetector(storagePast, timeOfOnset, sampleRate, thresholdValue, onsetScope, storageSparse);
-
-		for (int i = 0; i < (bufsize * nbBuffers * 3); i++)
-		{
-			storagePast[i] = (storagePast[i + double(bufsize) * nbBuffers]); //40ms first milisecond to trash by decay
-		}
-
-		for (int i = 0; i < (bufsize * nbBuffers); i++)
-		{
-			storagePast.pop_back(); //delete last 40ms which are copy
-		}
-
-		storageActual.clear();
-		for (int i = 0; i < bufsize; i++)
-		{
-			storageActual.push_back(channelData[i]); //40ms
-		}
-		detectionDone = true;
-		counter++;
-	}
-	else
-	{
-		if (detectionDone)
-		{
-			detectionDone = false;
-		}
-		for (int i = 0; i < bufsize; i++)
-		{
-			storageActual.push_back(channelData[i]); //40ms
-		}
-		counter++;
-	}
 }

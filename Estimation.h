@@ -5,7 +5,7 @@
 #include <iostream>
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Source\package eigen\Eigen\Dense"
 #include <random>
-#define NOMBRE_ESTIMATION 500
+#define NOMBRE_ESTIMATION 100 //500 before opti
 struct Model
 {
 	Eigen::MatrixXd Mu;//2*78

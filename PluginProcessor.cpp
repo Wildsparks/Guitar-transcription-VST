@@ -33,7 +33,7 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 	counterOnset  (0),
 	thresholdValue(0),
 
-	storageSparse(120, 0),
+	storageSparse(120*10, 0),
 	storageActual(1, 0),
 	storagePast  (1, 0),
 	newSegment   (1, 0),
@@ -46,74 +46,68 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 
 	//-------second-step-------//
 
+	//------//prepocess//------//
+
+	lengthFFT       (pow(2, 17)),  // Length of  zero - padded FFT. //2^19 before opti 
+	segmentDuration (40e-3),       // segment duration in seconds.
+
+	//--------third-step-------//
+
 	//--------//pitch//--------//
 
 	f0LimitsInf (75),
 	f0LimitsSup (700),         // boundaries for f0 search grid in Hz.
 	nbOfHarmonicsInit(5),      // number of harmonics for initial harmonic estimate(B = 0).
 
+	//--------fourth-step------//
 
+	//------//Candidate//------//
 
+	//--------fifth-step--------//
 
+	//------//inharmonic//------//
 
+	betaRes           (1e-5),   // resolution of search grid for B. //1e-7 before opti
+	highNbOfHarmonics (20),     //25 before opti
 
+	//--------sixth-step--------//
 
+	//------//Prediction//------//
+
+	X(2),
+	trueString(6),
+	trueFret(13),
+	//classifier parameters//
+	mu(2),
+	C(2, 2),
+	JMatrix(78),
+	pitchReference(78),
+	w0(6, 13), //= squeeze(est_f0);
+	B(6, 13),  //= squeeze(BCoeff);
+	P(0),
+	prediction(0),
+
+	//-------seventh-step-------//
+
+	//----//pluck position//----//
+
+	LOpen (64.3),
 
 	//-------final-step-------//
 
 	//--------//plot//--------//
 
-	DataScope(),
 	DataScopeFifo(),
 	nextFFTBlockReady(false),
-
-
-
-
-
-
-
-
-	//input buffer//
-	X(2),
-
-	//sweep//
-	trueString(6),
-	trueFret(13),
-
-	//classifier parameters//
-	mu(2),
-	C(2, 2),
-	JMatrix(78),
-
-	pitchReference(78),
-
-	w0(6, 13), //= squeeze(est_f0);
-	B(6, 13),  //= squeeze(BCoeff);
-	P(0),
-
-	prediction(0),
-
-	//onset//
-	
-	
-
-
-
-
-
-	//moi
-	afficheValue(10),
-
-
-
-	
-
-	//result
 	stringPlayed(0),
 	fretPlayed(0),
+	isPlayed(false),
 
+	//-----miscellaneous-----//
 
+	//--------//---//--------//
+
+	afficheValue(10),
 
 #ifndef JucePlugin_PreferredChannelConfigurations
       AudioProcessor (BusesProperties()
@@ -141,9 +135,9 @@ Jacode_iiiAudioProcessor::Jacode_iiiAudioProcessor() : //class audioprocessor co
 	for (int i = 0; i < SCOPESIZE; ++i)
 	{
 		scopeDataIsPlayed[i] = false;
-		scopeDataFret[i] = 0;
-		scopeDataString[i] = 0;
-		scopeDataOnset[i] = 0.0f;//just for working
+		scopeDataFret[i]     = 0;
+		scopeDataString[i]   = 0;
+		scopeDataOnset[i]    = 0.0;  //just for working
 	}
 
 	//==============================================================================//
@@ -195,7 +189,7 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 
 			int buffsize(buffer.getNumSamples());
 			int counterOfBuffer(1);
-			std::vector<float> data;
+			std::vector<double> data;
 			const float* pointerData(buffer.getReadPointer(channel));
 
 			while (buffsize > TIMEBUFFER * getSampleRate()) //if buffer > 40ms we are not able to predict for each time we need.
@@ -228,7 +222,7 @@ void Jacode_iiiAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuf
 //=================================TEST=========================================////==============================================================================//
 //==============================================================================////==============================================================================//
 
-float Jacode_iiiAudioProcessor::getAfficheValue()
+double Jacode_iiiAudioProcessor::getAfficheValue()
 {
 	return(afficheValue);
 }
@@ -237,14 +231,14 @@ float Jacode_iiiAudioProcessor::getAfficheValue()
 //================================--Process--===================================//
 //==============================================================================//
 
-void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* data, int bufSize, int sampleRate)
+void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const double* data, int bufSize, double sampleRate)
 {
-	int    segmentSize (TIMEBUFFER * sampleRate); //40ms in sample
-	int    frameSize   (TIMEFRAME  * sampleRate); //1ms in sample
+	int    segmentSize     (static_cast<int>(TIMEBUFFER * sampleRate)); //40ms in sample
+	int    frameSize       (static_cast<int>(TIMEFRAME  * sampleRate)); //1ms in sample
 	int    Noteprediction  (0);
-	float time        (-0.040 * 2.0);            //decay time because of storing
+	double time        (-0.040 * 2.0);            //decay time because of storing
 
-	Onset(data, bufSize, sampleRate, timeOfOnset, counterOnset, storageActual, storagePast, thresholdValue, onsetScope, detectionDone, storageSparse);
+	Onset(data, bufSize, sampleRate, timeOfOnset, storageActual, storagePast, thresholdValue, onsetScope, detectionDone, storageSparse);
 	
 	if (detectionDone)//many buffer are just store => predictions aren't done every time we get buffer but every time we get 40ms.
 	{
@@ -253,7 +247,11 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 
 		for (int i = 0; i < timeOfOnset.size(); ++i)
 		{
-			time += TIMEFRAME; 
+			time += TIMEFRAME;
+			fretPlayed = -1;
+			stringPlayed = -1;
+			isPlayed = false;
+
 			if (timeOfOnset[i] == true) //detection of an Onset
 			{
 
@@ -264,7 +262,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 
 					for (int j = 0; j < frameSize; ++j)//fill with the first frame
 					{
-						newSegment.push_back(storagePast[(((int)i + (int)index) * (int)frameSize + (int)j)]);
+						newSegment.push_back(storagePast[(((__int64)i + (__int64)index) * (__int64)frameSize + (__int64)j)]);
 					}
 
 				}
@@ -274,12 +272,13 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 					Noteprediction = FretStringPrediction(newSegment);
 					fretPlayed = (unsigned int)floor(Noteprediction / NBSTRING);
 					stringPlayed = Noteprediction % NBSTRING;
+					isPlayed = true;
 
 					newSegment.clear(); //we create a new segment
 
 					for (int j = 0; j < frameSize; ++j)//we continue to fill the new segment
 					{
-						newSegment.push_back(storagePast[(((int)i + (int)index) * (int)frameSize + (int)j)]);
+						newSegment.push_back(storagePast[(((__int64)i + (__int64)index) * (__int64)frameSize + (__int64)j)]);
 					}
 
 					
@@ -290,6 +289,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 					Noteprediction = FretStringPrediction(newSegment);
 					fretPlayed = (unsigned int)floor(Noteprediction / NBSTRING);
 					stringPlayed = Noteprediction % NBSTRING;
+					isPlayed = true;
 
 					newSegment.clear();
 					onsetdetected = false;
@@ -302,7 +302,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 				{
 					for (int j = 0; j < frameSize; ++j)
 					{
-						newSegment.push_back(storagePast[(((int)i+(int)index) * (int)frameSize + (int)j)]);
+						newSegment.push_back(storagePast[(((__int64)i + (__int64)index) * (__int64)frameSize + (__int64)j)]);
 					}
 
 				}
@@ -312,6 +312,7 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 					Noteprediction = FretStringPrediction(newSegment);
 					stringPlayed = Noteprediction % NBSTRING;
 					fretPlayed = (int)floor(Noteprediction / NBSTRING);
+					isPlayed = true;
 
 					onsetdetected = false;
 					newSegment.clear();
@@ -326,11 +327,11 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 
 			if (isnan(onsetScope[i])) //to prevent error
 			{
-				pushNextSampleIntoFifo(timeOfOnset[i], fretPlayed, stringPlayed, (4096), 0);
+				pushNextSampleIntoFifo(isPlayed, fretPlayed, stringPlayed, (4096), 0);
 			}
 			else
 			{
-				pushNextSampleIntoFifo(timeOfOnset[i], fretPlayed, stringPlayed, (4096), onsetScope[i]);
+				pushNextSampleIntoFifo(isPlayed, fretPlayed, stringPlayed, (4096), onsetScope[i]);
 			}
 
 		}  //----------------//end process//----------------//
@@ -343,72 +344,41 @@ void Jacode_iiiAudioProcessor::ProcessWithSpectrogramOnsetDetector(const float* 
 //=================================Analyser=====================================//
 //==============================================================================//
 
-void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, float onsetValue) noexcept
+void Jacode_iiiAudioProcessor::pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, double onsetValue) noexcept
 {
-	if (!nextFFTBlockReady)
+
+	nextFFTBlockReady = false;
+
+	if (DataScopeFifo.isPlayed.size() != size)
 	{
-		if (DataScope.isPlayed.size() != size)
-		{
-			DataScope.Fret.clear();
-			DataScope.String.clear();
-			DataScope.isPlayed.clear();
-			DataScope.Onset.clear();
-			DataScopeFifo.Fret.clear();
-			DataScopeFifo.String.clear();
-			DataScopeFifo.isPlayed.clear();
-			DataScopeFifo.Onset.clear();
-
-			for (int i = 0; i < size;++i)
-			{
-				DataScope.Fret.push_back(0);
-				DataScope.String.push_back(0);
-				DataScope.isPlayed.push_back(false);
-				DataScope.Onset.push_back(0.0f);
-				DataScopeFifo.Fret.push_back(0);
-				DataScopeFifo.String.push_back(0);
-				DataScopeFifo.isPlayed.push_back(false);
-				DataScopeFifo.Onset.push_back(0.0f);
-			}
-		}
-
-		std::rotate(DataScopeFifo.Fret.begin(),     DataScopeFifo.Fret.begin() + 1,     DataScopeFifo.Fret.end());
-		std::rotate(DataScopeFifo.String.begin(),   DataScopeFifo.String.begin() + 1,   DataScopeFifo.String.end());
-		std::rotate(DataScopeFifo.isPlayed.begin(), DataScopeFifo.isPlayed.begin() + 1, DataScopeFifo.isPlayed.end());
-		std::rotate(DataScopeFifo.Onset.begin(),    DataScopeFifo.Onset.begin() + 1,    DataScopeFifo.Onset.end());
-
-		DataScopeFifo.isPlayed[(int)size - (int)1] = isPlayed;
-		DataScopeFifo.String  [(int)size - (int)1] = stringPlayed;
-		DataScopeFifo.Fret    [(int)size - (int)1] = fretPlayed;
-		DataScopeFifo.Onset   [(int)size - (int)1] = onsetValue;
-
-		DataScope.Fret     = DataScopeFifo.Fret;
-		DataScope.String   = DataScopeFifo.String;
-		DataScope.isPlayed = DataScopeFifo.isPlayed;
-		DataScope.Onset    = DataScopeFifo.Onset;
-		nextFFTBlockReady  = true;
+		DataScopeFifo.Fret.resize(size);
+		DataScopeFifo.String.resize(size);
+		DataScopeFifo.isPlayed.resize(size);
+		DataScopeFifo.Onset.resize(size);
 	}
-	else
-	{
-		std::rotate(DataScopeFifo.Fret.begin(),     DataScopeFifo.Fret.begin() + 1,     DataScopeFifo.Fret.end());
-		std::rotate(DataScopeFifo.String.begin(),   DataScopeFifo.String.begin() + 1,   DataScopeFifo.String.end());
-		std::rotate(DataScopeFifo.isPlayed.begin(), DataScopeFifo.isPlayed.begin() + 1, DataScopeFifo.isPlayed.end());
-		std::rotate(DataScopeFifo.Onset.begin(),    DataScopeFifo.Onset.begin() + 1,    DataScopeFifo.Onset.end());
 
-		DataScopeFifo.isPlayed[(int)size - (int)1] = isPlayed;
-		DataScopeFifo.String  [(int)size - (int)1] = stringPlayed;
-		DataScopeFifo.Fret    [(int)size - (int)1] = fretPlayed;
-		DataScopeFifo.Onset   [(int)size - (int)1] = onsetValue;
-	}
+	std::rotate(DataScopeFifo.Fret.begin(),     DataScopeFifo.Fret.begin() + 1,     DataScopeFifo.Fret.end());
+	std::rotate(DataScopeFifo.String.begin(),   DataScopeFifo.String.begin() + 1,   DataScopeFifo.String.end());
+	std::rotate(DataScopeFifo.isPlayed.begin(), DataScopeFifo.isPlayed.begin() + 1, DataScopeFifo.isPlayed.end());
+	std::rotate(DataScopeFifo.Onset.begin(),    DataScopeFifo.Onset.begin() + 1,    DataScopeFifo.Onset.end());
+
+	DataScopeFifo.isPlayed[(__int64)size - (__int64)1] = isPlayed;
+	DataScopeFifo.String  [(__int64)size - (__int64)1] = stringPlayed;
+	DataScopeFifo.Fret    [(__int64)size - (__int64)1] = fretPlayed;
+	DataScopeFifo.Onset   [(__int64)size - (__int64)1] = onsetValue;
+
+	nextFFTBlockReady = true;
+
 }
 
 void Jacode_iiiAudioProcessor::drawNextFrameOfSpectrum()
 {
 	for (int i = 0; i < SCOPESIZE; ++i)
 	{
-		scopeDataIsPlayed[i]   = DataScope.isPlayed[(int)floor(i * DataScope.isPlayed.size() / SCOPESIZE)];
-		scopeDataString[i]     = DataScope.String  [(int)floor(i * DataScope.String.size()   / SCOPESIZE)];
-		scopeDataFret[i]       = DataScope.Fret    [(int)floor(i * DataScope.Fret.size()     / SCOPESIZE)];
-		scopeDataOnset[i]      = DataScope.Onset   [(int)floor(i * DataScope.Onset.size()    / SCOPESIZE)];
+		scopeDataIsPlayed[i]   = DataScopeFifo.isPlayed  [(int)round(i * DataScopeFifo.isPlayed.size() / SCOPESIZE)];
+		scopeDataString[i]     = DataScopeFifo.String    [(int)round(i * DataScopeFifo.String.size()   / SCOPESIZE)];
+		scopeDataFret[i]       = DataScopeFifo.Fret      [(int)round(i * DataScopeFifo.Fret.size()     / SCOPESIZE)];
+		scopeDataOnset[i]      = DataScopeFifo.Onset     [(int)round(i * DataScopeFifo.Onset.size()    / SCOPESIZE)];
 	}
 }
 
@@ -424,23 +394,30 @@ void Jacode_iiiAudioProcessor::setNextFFTBlockReady(bool value)
 
 void Jacode_iiiAudioProcessor::drawFrame(Graphics& g)
 {
+	int width = 1600;
+	int height = 600;
+
+	if (scopeDataIsPlayed[0])
+	{
+		//g.drawEllipse((float)jmap(i, 0, SCOPESIZE - 1, 90, width-80), (float)(0.25 * height + 58.0 - (5.0 - scopeDataString[i]) * 24.0), 15, 15, 1);
+		g.setFont(40.0f);
+		g.drawSingleLineText(std::to_string(scopeDataFret[0]), jmap(0, 0, SCOPESIZE - 1 - 5, 90, width - 80), (int)(0.25 * height + 58.0 + 10.0 + 2.0 - (5.0 - scopeDataString[0]) * 24.0));
+		g.fillRect((int)(250.0 + (afficheValue) * 10.0), 270, 8, 200);
+	}
+
 	for (int i = 1; i < SCOPESIZE; ++i)
 	{
-		int width = 1600;
-		int height = 600;
 
 		if (scopeDataIsPlayed[i])
 		{
-			g.drawEllipse((float)jmap(i, 0, SCOPESIZE - 1, 90, width-80), (float)(0.25 * height + 58.0 - (5.0 - scopeDataString[i]) * 24.0), 15, 15, 1);
+			//g.drawEllipse((float)jmap(i, 0, SCOPESIZE - 1, 90, width-80), (float)(0.25 * height + 58.0 - (5.0 - scopeDataString[i]) * 24.0), 15, 15, 1);
+			g.setFont(40.0f);
 			g.drawSingleLineText(std::to_string(scopeDataFret[i]), jmap(i, 0, SCOPESIZE - 1 -5, 90, width - 80), (int)(0.25 * height + 58.0 + 10.0 + 2.0 - (5.0 - scopeDataString[i]) * 24.0));
 			g.fillRect((int)(250.0+(afficheValue)*10.0), 270, 8,200);
 		}
-		afficheValue = scopeDataOnset[i - 1];
-		g.drawLine({ (float)jmap(i - 1, 0, SCOPESIZE - 1, 720, width-140) , jmap(scopeDataOnset[i - 1], -1.0f, 1.0f, (float)height-103.0f, 265.0f),
-				     (float)jmap(i ,    0, SCOPESIZE - 1, 720, width-140) , jmap(scopeDataOnset[i],     -1.0f, 1.0f, (float)height-103.0f, 265.0f) });
-		afficheValue = scopeDataOnset[i - 1];
+		g.drawLine({ (float)jmap(i - 1, 0, SCOPESIZE - 1, 720, width-140) , jmap((float)scopeDataOnset[i - 1], -1.0f, 1.0f, (float)height-103.0f, 265.0f),
+				     (float)jmap(i ,    0, SCOPESIZE - 1, 720, width-140) , jmap((float)scopeDataOnset[i],     -1.0f, 1.0f, (float)height-103.0f, 265.0f) });
 		g.drawLine(720, jmap(float(thresholdValue) / 100, 0.0f, 1.0f, (float)height - 218, 265.0f), (float)(width - 140.0), jmap(float(thresholdValue) / 100, 0.0f, 1.0f, (float)height - 218, 265.0f));
-
 
 	}	
 }
@@ -453,18 +430,18 @@ void Jacode_iiiAudioProcessor::setThresholdValue(int value)
 //==============================================================================//
 //================================Prediction====================================//
 //==============================================================================//
-int Jacode_iiiAudioProcessor::FretStringPrediction(const std::vector<float>& segment)
+int Jacode_iiiAudioProcessor::FretStringPrediction(const std::vector<double>& segment)
 {
-	float f0Features(0);
-	float betaFeatures(0);
+	double f0Features(0);
+	double betaFeatures(0);
 
-	std::vector<float> processSegment;
-	std::vector<std::complex<float>> hilberOutput;
+	std::vector<double> processSegment;
+	std::vector<std::complex<double>> hilberOutput;
 	processSegment = segment;
 
-	Preprocessing(processSegment, hilberOutput);
+	Preprocessing(processSegment, hilberOutput, static_cast<int>(lengthFFT));
 
-	float pitch = PitchEstimator(processSegment);
+	double pitch = PitchEstimator(processSegment);
 
 	std::vector<int> listOfCandidate = BetaEstimator(processSegment, pitch, pitchReference, f0Features, betaFeatures);
 
@@ -487,25 +464,25 @@ int Jacode_iiiAudioProcessor::FretStringPrediction(const std::vector<float>& seg
 	}
 	JMatrix.maxCoeff(&position);
 
-	afficheValue = float(PluckPositionPrediction(hilberOutput, f0Features, betaFeatures, (int)floor(listOfCandidate[position] / NBSTRING)));
+	afficheValue = 20;//double(PluckPositionPrediction(hilberOutput, f0Features, betaFeatures, (int)floor(listOfCandidate[position] / NBSTRING)));
 
 	return (listOfCandidate[position]);
 };
 
-float Jacode_iiiAudioProcessor::PitchEstimator(const std::vector<float>& segment)
+double Jacode_iiiAudioProcessor::PitchEstimator(const std::vector<double>& segment)
 {
 	return (HarmonicSummation(segment, f0LimitsInf, f0LimitsSup, nbOfHarmonicsInit, getSampleRate()));
 };
 
-std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float>& segment, float observedPitch, std::vector<float> pitchReference, float& f0Features, float& betaFeatures)
+std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<double>& segment, double observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures)
 {
 	std::vector<int> finalCandidate;
 
 	PitchCandidate(finalCandidate, observedPitch, pitchReference, NBSTRING);
 
-	std::vector<float> pitchEstimate;
-	std::vector<float> BEstimate;
-	std::vector<float> costFunctionMaxVal;
+	std::vector<double> pitchEstimate;
+	std::vector<double> BEstimate;
+	std::vector<double> costFunctionMaxVal;
 
 	for (int indexCandidate = 0; indexCandidate < finalCandidate.size(); ++indexCandidate)
 	{
@@ -528,7 +505,7 @@ std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float
 		BEstimate.push_back(0);
 		costFunctionMaxVal.push_back(0);
 
-		InharmonicSummation(segment, observedPitch, highNbOfHarmonics, (int)getSampleRate(), maxBetaGrid, minBetaGrid, betaRes, lengthFFT, pitchEstimate[indexCandidate], BEstimate[indexCandidate], costFunctionMaxVal[indexCandidate]);
+		InharmonicSummation(segment, observedPitch, highNbOfHarmonics, getSampleRate(), maxBetaGrid, minBetaGrid, betaRes, lengthFFT, pitchEstimate[indexCandidate], BEstimate[indexCandidate], costFunctionMaxVal[indexCandidate]);
 	}
 
 	int maxIndexCost(0);
@@ -549,13 +526,13 @@ std::vector<int> Jacode_iiiAudioProcessor::BetaEstimator(const std::vector<float
 	return(finalCandidate);
 };
 
-float Jacode_iiiAudioProcessor::PluckPositionPrediction(const std::vector<std::complex<float>>& hilberOutput, float f0Features, float betaFeatures, int fretPlayed)
+double Jacode_iiiAudioProcessor::PluckPositionPrediction(const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed)
 {
 	std::vector<double> amplitudesAbs;
 	double pluckingPosition;
 	double L;
 
-	amplitudesAbs = AmplitudesEstimation(hilberOutput, f0Features, betaFeatures, hilberOutput.size(), (int)getSampleRate(), highNbOfHarmonics);
+	amplitudesAbs = AmplitudesEstimation(hilberOutput, f0Features, betaFeatures, static_cast<int>(hilberOutput.size()), getSampleRate(), highNbOfHarmonics);
 	L = LOpen * pow(2.0, (-(double)fretPlayed / 12.0));
 	pluckingPosition = PluckingPositionEstimatorLSD(amplitudesAbs, L);
 
