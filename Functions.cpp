@@ -3,6 +3,7 @@
 void Hanning(int lenth, std::vector<double>& hann)
 {
 	//Hanning Window
+
 	for (int i = 0; i < lenth; i++) {
 		double multiplier = 0.5 * (1.0 - cos(2.0 * M_PI * i / (lenth - 1.0)));
 		hann[i] = multiplier;

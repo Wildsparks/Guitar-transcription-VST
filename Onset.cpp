@@ -7,6 +7,7 @@
 #define IMAG 1
 
 void onsetDetector(std::vector<double> const& storage, std::vector<bool> & timeOfOnset, double sampleRate, int const& thresholdValue, std::vector<double> & onsetScope, std::vector<double> & storageSparse);
+void onsetDetectorLowCPU(std::vector<double> const& storage, std::vector<bool>& timeOfOnset, double sampleRate, int const& thresholdValue, std::vector<double>& onsetScope, std::vector<double>& storageSparse);
 
 void Onset(const double* channelData, int bufsize, double sampleRate, std::vector<bool>& timeOfOnset, std::vector<double>& storageActual, std::vector<double>& storagePast, int const& thresholdValue, std::vector<double>& onsetScope, bool& detectionDone, std::vector<double>& storageSparse)
 {
@@ -182,7 +183,6 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 			sumFreq2 = sumFreq2 + spectrogram[i][j]; //sum(x^2)
 			spectrogram[i][j] = spectrogram[i][j] * spectrogram[i][j];
 			sumFreq4 = sumFreq4 + spectrogram[i][j]; //sum(x^4)
-
 		}
 
 		if (sumFreq4 == 0)
@@ -298,5 +298,143 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	}
 
+
+}
+
+
+void onsetDetectorLowCPU(std::vector<double> const& storage, std::vector<bool>& timeOfOnset, double sampleRate, int const& thresholdValue, std::vector<double>& onsetScope, std::vector<double>& storageSparse)
+{
+
+	//easy method
+	int gap = 10; //ms
+
+	int lengthSegment = static_cast<int>( storage.size() );
+
+	double scale = (gap * 0.001 * sampleRate);
+	int nbFrame = static_cast<int>(lengthSegment / scale);
+	int lengthOfAnalyse = static_cast<int>(round(scale));
+
+	std::vector<double> processSegment(lengthSegment);
+	std::vector<double> integrateSegment(lengthSegment);
+	std::vector<double> meanSegment(lengthSegment);
+	std::vector<double> derivateLogSegment(lengthSegment);
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse*3.0); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse*3.0+1.0); ++i)
+	{
+		processSegment[i] = std::abs(storage[i]);
+	}
+
+	//infinity norm
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse*2.0); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse*2.0 +1.0); ++i)
+	{
+		integrateSegment[i] = *std::max_element(processSegment.begin() + i - lengthOfAnalyse, processSegment.begin() + i + lengthOfAnalyse);
+	}
+
+
+	//low pass filter
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse + 1.0); ++i)
+	{
+		meanSegment[i] = std::accumulate(integrateSegment.begin() + i - lengthOfAnalyse, integrateSegment.begin() + i + lengthOfAnalyse, 0.0);
+	}
+
+
+	//peak creation
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse); ++i)
+	{
+		derivateLogSegment[i] = (meanSegment[i + 1] - meanSegment[i]);
+		if(derivateLogSegment[i]<0)
+		{
+			derivateLogSegment[i] = 0;
+		}
+	}
+
+	//peack detection//
+
+	//normalization//
+	
+	double sum(0);
+	double maxx = std::numeric_limits<float>::min();
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse); ++i)
+	{
+		if (maxx < derivateLogSegment[i])
+		{
+			maxx = derivateLogSegment[i];
+		}
+	}
+
+	//store this value
+
+	storageSparse.push_back(maxx);
+
+	std::rotate(storageSparse.begin(), storageSparse.begin() + 1, storageSparse.end());
+
+	storageSparse.pop_back();
+
+	maxx = std::numeric_limits<float>::min();
+	//
+	for (int i = 0; i < storageSparse.size(); ++i)
+	{
+		if (maxx < storageSparse[i])
+		{
+			maxx = storageSparse[i];
+		}
+	}
+	//
+
+	for (int i = static_cast<int>(lengthSegment * 0.25 - lengthOfAnalyse); i < static_cast<int>(lengthSegment * 0.5 + lengthOfAnalyse); ++i)
+	{
+		derivateLogSegment[i] = (derivateLogSegment[i] / maxx);
+	}
+
+	//end normalization//
+
+	int combination_width(lengthOfAnalyse);// min 1ms between detection 
+	double delta(double(0.10));//thresholdValue) / 100.0);           // threshold for the mean.
+	double pointer(0);                            // index
+
+	double alpha(lengthOfAnalyse);      // for interval max value between a and b // 20 by default.
+	double beta(lengthOfAnalyse);      // for interval min value between a and b // 20 by default.
+	double a(lengthOfAnalyse);      // for mean max value between a and b // 40 by default.
+	double b(lengthOfAnalyse);      // for mean min value between a and b // 40 by default.
+
+	timeOfOnset.clear();
+	onsetScope.clear();
+
+	//peack detection computation//
+	for (int i = static_cast<int>(0.25 * (double)lengthSegment); i < static_cast<int>(0.5 * (double)lengthSegment); ++i)
+	{
+
+		sum = 0;
+		for (int j = static_cast<int>(i - a); j < static_cast<int>(i + b + 1.0); ++j)
+		{
+			sum = sum + derivateLogSegment[j] + delta;
+		}
+
+		maxx = 0;
+		for (int m = static_cast<int>(i - alpha); m <= static_cast<int>(i + beta); ++m)
+		{
+			if (maxx < derivateLogSegment[m])
+			{
+				maxx = derivateLogSegment[m];
+			}
+		}
+
+		if ((derivateLogSegment[i] == maxx) && (derivateLogSegment[i] >= (sum / (a + b + 1.0))) && (double(double(i) - pointer) > combination_width))
+		{
+			pointer = i;
+			timeOfOnset.push_back(true);
+			onsetScope.push_back(-1.0);
+		}
+		else
+		{
+			timeOfOnset.push_back(false);
+			onsetScope.push_back(derivateLogSegment[i]);
+		}
+
+	}
 
 }

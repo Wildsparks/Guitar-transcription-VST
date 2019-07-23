@@ -43,6 +43,7 @@ struct result
 	std::vector<int> Fret;
 	std::vector<int> String;
 	std::vector<double> Onset;
+	std::vector<double> Pluck;
 };
 
 //==============================================================================
@@ -92,7 +93,7 @@ public:                                                                         
 	//================================Osciloscope===================================//
 	//==============================================================================//
 
-	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, double onsetValue) noexcept;
+	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, double onsetValue, double pluckValue) noexcept;
 	void drawNextFrameOfSpectrum();
 	bool getNextFFTBlockReady();
 	void setNextFFTBlockReady(bool value);
@@ -104,14 +105,14 @@ public:                                                                         
 
 	void setThresholdValue(int value);
 	void ProcessWithSpectrogramOnsetDetector(const double* data, int bufSize, double sampleRate);
-
+	void ProcessWithLowCPUOnsetDetector(const double* data, int bufSize, double sampleRate);
 	//==============================================================================//
 	//================================Prediction====================================//
 	//==============================================================================//
 	
 	double           PitchEstimator          (const std::vector<double>& segment);
 	std::vector<int> BetaEstimator           (const std::vector<double>& segment, double observedPitch, std::vector<double> pitchReference, double& f0Features, double& betaFeatures);
-	int              FretStringPrediction    (const std::vector<double>& segment);
+	void             FretStringPrediction(const std::vector<double>& segment, int& Noteprediction, double& pluckValue);
 	double           PluckPositionPrediction (const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed);
 
 	//==============================================================================//
@@ -209,6 +210,7 @@ private:                                                                        
 	int stringPlayed;
 	int fretPlayed;
 	bool isPlayed;
+	double pluckValue;
 
 	//-------final-step-------//
 
@@ -217,7 +219,8 @@ private:                                                                        
 	bool   scopeDataIsPlayed [SCOPESIZE];//The scopeData float array of size 512 will contain the points to display on the screen.
 	int    scopeDataFret     [SCOPESIZE];
 	int    scopeDataString   [SCOPESIZE];
-	double scopeDataOnset    [SCOPESIZE];//just for working
+	double scopeDataOnset    [SCOPESIZE];
+	double scopeDataPluck    [SCOPESIZE];
 	result DataScopeFifo;
 	bool   nextFFTBlockReady;
 

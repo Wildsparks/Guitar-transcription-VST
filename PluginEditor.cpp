@@ -23,13 +23,13 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
 
 
 	//size of the windows
-    setSize (1600, 600);
+    setSize (1600, 700);
 
 	//FPS
-	startTimerHz(120);  //interval en miliseconde divisé par 8 pour faire des 60000 / BPM / 8
+	startTimerHz(30);  //interval en miliseconde divisé par 8 pour faire des 60000 / BPM / 8
 
 	//background
-	background = ImageCache::getFromMemory(BinaryData::backgroundImage_png, BinaryData::backgroundImage_pngSize);
+	background = ImageCache::getFromMemory(BinaryData::backgroundImagev3_png, BinaryData::backgroundImage_pngSize);
 
 	//--------------------------------//
 	//--------onset sliders-----------//
@@ -51,9 +51,9 @@ Jacode_iiiAudioProcessorEditor::Jacode_iiiAudioProcessorEditor (Jacode_iiiAudioP
 
 
 
-	labelvalue.setFont(60.0f);
-	labelvalue.setText("load...", sendNotification);
-	addAndMakeVisible(&labelvalue);
+	//labelvalue.setFont(60.0f);
+	//labelvalue.setText("load...", sendNotification);
+	//addAndMakeVisible(&labelvalue);
 
 }
 
@@ -74,11 +74,11 @@ void Jacode_iiiAudioProcessorEditor::paint (Graphics& g)
 		0,
 		0,
 		1600,
-		600,
+		700,
 		0,
 		0,
 		1641,
-		501
+		700
 	);
 	processor.drawFrame(g);
 
@@ -89,18 +89,18 @@ void Jacode_iiiAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor..
-	auto sliderLeft = 820;
-	labelvalue.setBounds(sliderLeft, 400, getWidth() - sliderLeft, 100);
-	thresholdSlider.setBounds(sliderLeft, 500, getWidth() - sliderLeft - 180, 80);
+	auto sliderLeft = 80;
+	//labelvalue.setBounds(sliderLeft, 400, getWidth() - sliderLeft, 100);
+	thresholdSlider.setBounds(sliderLeft, 630, getWidth() - sliderLeft, 80);
 	
 }
 
 void Jacode_iiiAudioProcessorEditor::timerCallback()
 {
-	labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
+	//labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
 	if (processor.getNextFFTBlockReady())
 	{
-		labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
+		//labelvalue.setText(std::to_string(processor.getAfficheValue()), sendNotification);
 		processor.setThresholdValue((int)thresholdSlider.getValue());
 		processor.drawNextFrameOfSpectrum();
 		repaint();

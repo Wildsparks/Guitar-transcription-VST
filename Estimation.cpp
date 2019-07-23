@@ -1,19 +1,11 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Estimation.h"
-#include <iostream>
-#include <random>
 
 using namespace Eigen;
 
-//#define NOMBRE_ESTIMATION 5000 //5000 // in the .h
-# define M_PI 3.1415926535897932384626433832795028841971693993751058209749445923078164
+# define M_PI 3.1415926535897932
 
 struct Model;
 
-double std_dev(ArrayXd vec)
-{
-	double std_dev = std::sqrt((vec - vec.mean()).square().sum() / (vec.size() - 1.0));
-	return std_dev;
-}
 
 MatrixXd covariance(MatrixXd mat)
 {
@@ -24,7 +16,6 @@ MatrixXd covariance(MatrixXd mat)
 
 double Vect_Mat_Vect(VectorXd A, MatrixXd C, VectorXd B)
 {
-	//return B(1) * C(1, 1) * A(1) + B(0) * C(1, 0) * A(1) + B(1) * C(0,1) * A(0) + B(0) * C(0, 0) * A(0);
 	return(A.transpose() * C * B);
 }
 
@@ -38,60 +29,33 @@ double JClassifier(VectorXd mu, MatrixXd C, double P, VectorXd X)
 
 Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 {
+
+	std::string line;
+	std::ifstream myfile;
+	myfile.open("random_number.txt");
+
+	if (myfile.is_open())
+	{}
+	else std::cout << "Unable to open file call random_number.text, please join it to the .cpp file folder";
+
 	//randn
-	std::default_random_engine generator; //not same as matlab
-	std::normal_distribution<double> distribution(0.0, 1.0);
+	//std::default_random_engine generator; //not same as matlab
+	//std::normal_distribution<double> distribution(0.0, 1.0);
 	//-------------------------------//
-	double percentageStd = 0.005;
-	double P(1.0 / 3.0);
-	double force(0.05);
-	double Esteel = 2.27e11; // Young's modulus for steel
-	double G = 79.3e9; // known shear modulus steel
-	double rhoCore = 7950.0; //[kg/m^3]
-	double rhoWrapping = 6000.0; //[kg/m^3]
 
 	VectorXd distanceFactor(6);
-	distanceFactor << 1.0, 2.0, 9.0, 4.0, 5.0, 2.0;
-
 	VectorXd L0(6);
-	for (int i = 0; i < 6; i++)
-	{
-		L0(i) = 0.6411 + distanceFactor(i) * 1e-3; //distance from nut to bridge
-	}
-
 	int numStrings(6);
 	VectorXd strNdx(numStrings);
-	for (int i = 0; i < numStrings; i++)
-	{
-		strNdx(i) = i++;
-	}
-
 	int numFrets(12);
 	VectorXd fretNdx(numFrets + 1);
-	for (int i = 0; i <= numFrets; i++)
-	{
-		fretNdx(i) = i;
-	}
 
 	//dFull
 	VectorXd thicknessFactor(6);
-	thicknessFactor << 0.010, 0.013, 0.017, 0.026, 0.036, 0.046;
-
 	VectorXd dFull(6);
-	dFull = thicknessFactor * 0.0254; //full diameter for the  strings
-
-
 	VectorXd thicknessFactorCore(6);
-	thicknessFactorCore << 0.010, 0.013, 0.017, 0.015, 0.016, 0.018;
-
-
 	VectorXd dCore(6);
-	dCore = thicknessFactorCore * 0.0254; //core diameter without wrapping
-
-
 	VectorXd T0(6);
-	T0 << 16, 15, 17, 18, 20, 17;
-	T0 *= 4.45;
 
 	////-------------------------------------------////
 
@@ -121,46 +85,88 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 
 	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 	{
+		//initialisation
+		double percentageStd = 0.005;
+		double P(1.0 / 3.0);
+		double force(0.05);
+		double Esteel = 2.27e11; // Young's modulus for steel
+		double G = 79.3e9; // known shear modulus steel
+		double rhoCore = 7950.0; //[kg/m^3]
+		double rhoWrapping = 6000.0; //[kg/m^3]
+
+		for (int i = 0; i < numStrings; i++)
+		{
+			strNdx(i) = i++;
+		}
+
+		for (int i = 0; i <= numFrets; i++)
+		{
+			fretNdx(i) = i;
+		}
+
+		distanceFactor << 1.0, 2.0, 9.0, 4.0, 5.0, 2.0;
+
+		for (int i = 0; i < 6; i++)
+		{
+			L0(i) = 0.6411 + distanceFactor(i) * 1e-3; //distance from nut to bridge
+		}
+
+		//thicknessFactor << 0.00989, 0.0132, 0.0174, 0.026, 0.036, 0.0459;
+		thicknessFactor << 0.010, 0.013, 0.0172, 0.026, 0.036, 0.046;
+		dFull = thicknessFactor * 0.0254; //full diameter for the  strings
+		thicknessFactorCore << 0.010, 0.013, 0.0172, 0.0146, 0.016, 0.018;
+		dCore = thicknessFactorCore * 0.0254; //core diameter without wrapping
+		T0 << 16.5, 16.0, 17.5, 18.5, 20, 17;
+		T0 *= 4.45;
+
 		//add noise to length
 		
 		for (int i = 0; i <= numFrets; i++)
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				mL0(j, i) = L0(j) * pow(2.0, -fretNdx(i) / 12.0);
+				mL0(j, i) = L0(j) * pow(2.0, -(fretNdx(i)) / 12.0);
 			}
 		}
 
-		for (int i = 0; i <= numFrets; i++)
+		for (int j = 0; j < numStrings; j++)
 		{
-			for (int j = 0; j < numStrings; j++)
+			for (int i = 0; i <= numFrets; i++)
 			{
-				mL0(j, i) = mL0(j, i) + percentageStd * distribution(generator) * mL0(j, i);
+				getline(myfile, line); // for random
+				mL0(j, i) = mL0(j, i) + percentageStd * std::stod(line) * mL0(j, i);
 			}
 		}
 
 		//noise to T0
 		for (int j = 0; j < numStrings; j++)
 		{
-			T0(j) = T0(j) + percentageStd * distribution(generator) * T0(j);
+			getline(myfile, line); // for random
+			T0(j) = T0(j) + percentageStd * std::stod(line) * T0(j);
 		}
 
 		//noise to dCore
 		for (int j = 0; j < numStrings; j++)
 		{
-			dCore(j) = dCore(j) + percentageStd * distribution(generator) * dCore(j);
+			getline(myfile, line); // for random
+			dCore(j) = dCore(j) + percentageStd * std::stod(line) * dCore(j);
 		}
 
-		dWrapping=((dFull - dCore) * 0.5);
+		for (int j = 0; j < numStrings; j++)
+		{
+			dWrapping(j) = ((dFull(j) - dCore(j)) / 2.0);
+		}
 
 		//noise to dWrapping
 		for (int j = 0; j < numStrings; j++)
 		{
-			dWrapping(j) = dWrapping(j) + percentageStd * distribution(generator) * dWrapping(j);
+			getline(myfile, line); // for random
+			dWrapping(j) = dWrapping(j) + percentageStd * std::stod(line) * dWrapping(j);
 		}
 
 		//Add noise to plucking force
-		force = force + percentageStd * distribution(generator) * force;
+		getline(myfile, line); // for random
+		force = force + percentageStd * std::stod(line) * force;
 
 
 		///--------------------------------------------///
@@ -240,7 +246,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		{
 			for (int j = 0; j < numStrings; j++)
 			{
-				deltaDeltaL(j, i) = sqrt(pow((P * mL0(j, i)), 2.0) + pow(deltaP(j, i), 2.0)) + sqrt(pow((1.0 - P) * mL0(j, i), 2.0) + pow(deltaP(j, i), 2.0)) - mL0(j, i);
+				deltaDeltaL(j, i) = std::sqrt(pow((P * mL0(j, i)), 2.0) + pow(deltaP(j, i), 2.0)) + std::sqrt(pow((1.0 - P) * mL0(j, i), 2.0) + pow(deltaP(j, i), 2.0)) - mL0(j, i);
 			}
 		}
 
@@ -286,7 +292,6 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 		}
 
 		f0[nombre_estimation] = f0ForOneEstimation;
-
 		BMixed[nombre_estimation] = BIntrinsicForOneEstimation + BPluckForOneEstimation;
 
 	}
@@ -294,13 +299,11 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 	//-----END-LOOP-----//
 
 	MatrixXd BSimulations[NOMBRE_ESTIMATION];
-	MatrixXd pitchSimulations[NOMBRE_ESTIMATION];
 	MatrixXd w0[NOMBRE_ESTIMATION];
 
 	for (int i = 0; i < NOMBRE_ESTIMATION; i++)
 	{
 		BSimulations[i] = BMixed[i];
-		pitchSimulations[i] = f0[i];
 		w0[i] = f0[i];
 	}
 
@@ -311,7 +314,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 	int kk = 0;
 
 	MatrixXd featureMatrixForOneEstimation(2, 78);
-	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; nombre_estimation++)
+	for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 	{
 		kk = 0;
 		for (int i = 0; i <= numFrets; i++)
@@ -334,15 +337,15 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 	{
 		for (int j = numStrings - 1; j >= 0; --j)
 		{
-			meanFeatureMatrix(0, kk) = 0;
-			meanFeatureMatrix(1, kk) = 0;
+			meanFeatureMatrix(0, kk) = 0.0;
+			meanFeatureMatrix(1, kk) = 0.0;
 			for (int nombre_estimation = 0; nombre_estimation < NOMBRE_ESTIMATION; ++nombre_estimation)
 			{
-				meanFeatureMatrix(0, kk) = meanFeatureMatrix(0, kk)+(featureMatrix[nombre_estimation](0, kk) / NOMBRE_ESTIMATION);
-				meanFeatureMatrix(1, kk) = meanFeatureMatrix(1, kk)+(featureMatrix[nombre_estimation](1, kk) / NOMBRE_ESTIMATION);
-
+				meanFeatureMatrix(0, kk) = meanFeatureMatrix(0, kk)+(featureMatrix[nombre_estimation](0, kk));
+				meanFeatureMatrix(1, kk) = meanFeatureMatrix(1, kk)+(featureMatrix[nombre_estimation](1, kk));
 			}
-
+			meanFeatureMatrix(0, kk) /= NOMBRE_ESTIMATION;
+			meanFeatureMatrix(1, kk) /= NOMBRE_ESTIMATION;
 			kk = kk + 1;
 		}
 	}
@@ -372,7 +375,7 @@ Model Calcul_parametre(MatrixXd (&featureMatrix)[NOMBRE_ESTIMATION])
 	}
 
 	classifier.W = W;
-
+	myfile.close(); // for random
 	return classifier;
 
 }

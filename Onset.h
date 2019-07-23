@@ -7,6 +7,7 @@
 #include <vector>
 #include <numeric>
 #include <functional>
+#include <algorithm>
 
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\Functions.h"
 

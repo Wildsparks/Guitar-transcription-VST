@@ -74,13 +74,11 @@ void Preprocessing(std::vector<double>& segment, std::vector<std::complex<double
 	//===============Hilbert transform end=================////NB : FFTW don't normalize fft data : need to be divide by length
 	//=====================================================//
 
-	hilbertOutput.clear();
-	std::complex<double> valueHilbertOutput(0,0);
+	hilbertOutput.resize(N);
+
 	for (int i = 0; i < N; ++i)
 	{
-		valueHilbertOutput.real(hilbertOut[i][REAL] / double(N));
-		valueHilbertOutput.imag(hilbertOut[i][IMAG] / double(N));
-		hilbertOutput.push_back(valueHilbertOutput);
+		hilbertOutput[i] = std::complex<double>(hilbertOut[i][REAL] / double(N), hilbertOut[i][IMAG] / double(N));
 	}
 
 	//=====================================================//
@@ -101,6 +99,7 @@ void Preprocessing(std::vector<double>& segment, std::vector<std::complex<double
 
 	}
 	fftw_free(hilbertOut);
+
 	for (int i = N; i < lengthFft; ++i)
 	{
 		in2[i][REAL] = 0.0;
@@ -116,6 +115,7 @@ void Preprocessing(std::vector<double>& segment, std::vector<std::complex<double
 	{
 		segment[i] = (2.0 / (double)lengthFft * (pow(fftOut[i][IMAG], 2.0) + pow(fftOut[i][REAL], 2.0))); //10.0 * log10() if you want db and *2 can be remove
 	}
+
 	fftw_destroy_plan(p);
 	fftw_free(fftOut);
 
