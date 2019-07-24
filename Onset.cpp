@@ -151,8 +151,17 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	//end - Spectrogram//
 
-	double gamma(0.94); // as in the paper in %
-	double J((gamma * double(lenthFft)));
+	//-----sort-----//
+
+	for (int i = 0; i < (spectrogram.size()); ++i)
+	{
+		std::sort(spectrogram[i].begin(), spectrogram[i].end());
+	}
+
+	//---end sort---//
+
+	double gamma(1.0); // as in the paper in %
+	double J(floor(gamma * double(lenthFft)));
 	std::vector <double> invSparsity(0);
 
 	double sumFreq2(0.0);
@@ -214,9 +223,11 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	//take 80ms before
 
-	for (int i = 0; i < (0.5 * nbFrame); ++i)
+	double past_observation(2.0);
+
+	for (int i = 0; i < ((0.5+ past_observation) * nbFrame); ++i)
 	{
-		invSparsity.push_back(storageSparse[storageSparse.size() - static_cast<int>(0.75 * nbFrame) + i]);
+		invSparsity.push_back(storageSparse[storageSparse.size() - static_cast<int>((0.25+0.5+past_observation) * nbFrame) + i]);
 	}
 
 	//rotate to make it causal
@@ -232,17 +243,18 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 	double combination_width(ceil(r * lenthFft / sampleRate / 2.0));
 
 	double alpha ((20.0 / (double)gapBetweenFrame));      // for interval max value between a and b // 20 by default.
-	double beta  ((20.0 / (double)gapBetweenFrame));      // for interval min value between a and b // 20 by default.
-	double a     ((40.0 / (double)gapBetweenFrame));      // for mean max value between a and b // 40 by default.
-	double b     ((00.0 / (double)gapBetweenFrame));      // for mean min value between a and b // 40 by default.
+	double beta  ((40.0 / (double)gapBetweenFrame));      // for interval min value between a and b // 20 by default.
+	double a     ((320.0 / (double)gapBetweenFrame));      // for mean max value between a and b // 40 by default.
+	double b     ((10.0 / (double)gapBetweenFrame));      // for mean min value between a and b // 40 by default.
 
 	double delta(double(thresholdValue) / 100.0);          // threshold for the mean. 10 advice
 	int    pointer(0);                                     // index
 	double sum;
 
 	//normalization//
-	double maxx = 0;
 
+	double maxx = 0;
+	/*
 	for (int m = 0; m < storageSparse.size(); ++m)
 	{
 		if (maxx < storageSparse[m])
@@ -259,21 +271,15 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 		}
 	}
-
+	*/
 	//end normalization//
 
 	timeOfOnset.clear();
 	onsetScope.clear();
 
 	//peack detection computation//
-	for (int i = static_cast<int>((invSparsity.size()) / 3.0); i < static_cast<int>((invSparsity.size()) * 2.0 / 3.0); ++i) //40ms beacause each frame is 1ms
+	for (int i = static_cast<int>(nbFrame / 4.0 + past_observation * nbFrame); i < static_cast<int>((nbFrame / 2.0) + past_observation * nbFrame); ++i) //40ms beacause each frame is 1ms
 	{
-
-		sum = 0;
-		for (int j = static_cast<int>(i - a); j < static_cast<int>(i + b + 1.0); j++)
-		{
-			sum = sum + invSparsity[j] + delta;
-		}
 
 		maxx = 0;
 		for (int m = static_cast<int>(i - alpha); m <= static_cast<int>(i + beta); ++m)
@@ -282,6 +288,12 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 			{
 				maxx = invSparsity[m];
 			}
+		}
+
+		sum = 0;
+		for (int j = static_cast<int>(i - a); j < static_cast<int>(i + b + 1.0); j++)
+		{
+			sum = sum + invSparsity[j] + delta* maxx;
 		}
 
 		if ((invSparsity[i] == maxx) && (invSparsity[i] >= (sum / (a + b + 1.0))) && (double(i - pointer) > combination_width))
