@@ -5,7 +5,7 @@
 
 #define M_PI 3.141592653589793238460
 
-double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L)
+double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L, double distanceMax, double resPluck)
 {
 	double delta ( 1.0 );
 	double M = amplitudesAbs.size();
@@ -18,7 +18,7 @@ double PluckingPositionEstimatorLSD(std::vector<double> amplitudesAbs, double L)
 	double minValue = std::numeric_limits<double>::max();
 	double result(0);
 
-	for (double cnt = 6.0; cnt < ceil(L / 2.0); cnt += 0.1) // search grid in cm from the bridge.
+	for (double cnt = 6.0; cnt < distanceMax; cnt += resPluck) // search grid in cm from the bridge.
 	{
 		
 		P = cnt / L;

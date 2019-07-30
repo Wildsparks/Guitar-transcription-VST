@@ -14,9 +14,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <iostream> 
-#include <algorithm>
-#include <thread>        
-#include <mutex>         
+#include <algorithm>    
 #include <condition_variable>
 #include <numeric>
 #include <future>
@@ -31,9 +29,9 @@
 #include "D:\ecler\Documents\Cours\Ingenieur_4A\Stage\Jacode_III\Builds\VisualStudio2019\PluckingPositionEstimatorLSD.h"
 
 #define SCOPESIZE 4096
-#define NBFRET 12
+#define NBFRET 21
 #define NBSTRING 6
-#define NOMBRE_ESTIMATION 100
+#define NOMBRE_ESTIMATION 500
 
 struct Model;
 
@@ -94,9 +92,9 @@ public:                                                                         
 	//==============================================================================//
 
 	void pushNextSampleIntoFifo(bool isPlayed, int fretPlayed, int stringPlayed, int size, double onsetValue, double pluckValue) noexcept;
-	void drawNextFrameOfSpectrum();
-	bool getNextFFTBlockReady();
-	void setNextFFTBlockReady(bool value);
+	void drawNextFrame();
+	bool getNextBlockReady();
+	void setNextBlockReady(bool value);
 	void drawFrame(Graphics& g);
 
 	//==============================================================================//
@@ -116,10 +114,22 @@ public:                                                                         
 	double           PluckPositionPrediction (const std::vector<std::complex<double>>& hilberOutput, double f0Features, double betaFeatures, int fretPlayed);
 
 	//==============================================================================//
-	//============================Processing and test===============================//
+	//============================ == = editor  = == ===============================//
 	//==============================================================================//
 
 	double getAfficheValue();
+	void setnfftValue(double value);
+	void setbetaresValue(double value);
+	void setPluckOnOff(bool value);
+	void setResPluck(double value);
+	void setDistanceMaxPluck(double value);
+	void setNBHarmonics(double value);
+	void setNBHarmonicsF0(double value);
+	void reloadModel(double val1, double val2, double val3, double val4, double val5,
+		double val6, double val7, double val8, double val9, double val10,
+		double val11, double val12, double val13, double val14, double val15,
+		double val16, double val17, double val18, double val19, double val20,
+		double val21, double val22);
 
 	//==============================================================================//
 	//================================End method====================================//
@@ -183,6 +193,8 @@ private:                                                                        
 
 	//------//Prediction//------//
 
+	std::default_random_engine generator;
+	std::normal_distribution<double> distribution;
 	Model classifier;
 	Eigen::VectorXd X;
 	Eigen::MatrixXd featureMatrix[NOMBRE_ESTIMATION];
@@ -202,6 +214,8 @@ private:                                                                        
 	//----//pluck position//----//
 
 	double LOpen;               // assumed length of all open strings.
+	double distanceMaxPluck;
+	double resPluck;
 
 	//-------final-step-------//
 
@@ -222,61 +236,14 @@ private:                                                                        
 	double scopeDataOnset    [SCOPESIZE];
 	double scopeDataPluck    [SCOPESIZE];
 	result DataScopeFifo;
-	bool   nextFFTBlockReady;
+	bool   nextBlockReady;
 
 	//-----miscellaneous-----//
-
+	bool PluckOnOff;
+	double afficheValue;
 	//--------//---//--------//
 
-	double afficheValue;
+	
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Jacode_iiiAudioProcessor)
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//void ProcessWithLowCPUDetector(const float* data, int bufSize, int sampleRate);
-
-	/*void threadPredict(std::vector<float> const& newSegment, int& prediction);
-	void Jacode_iiiAudioProcessor::OnsetThread();
-	void Jacode_iiiAudioProcessor::PredictionThread();
-	void Jacode_iiiAudioProcessor::DisplayThread();
-	void Jacode_iiiAudioProcessor::RunThread();*/

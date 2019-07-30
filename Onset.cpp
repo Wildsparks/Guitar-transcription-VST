@@ -76,13 +76,14 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 	//0.5:0.75 : futur sample
 	//0.75:1.0 : sample for fft length
 
-	int     gapBetweenFrame(1);     // in ms
+	int     gapBetweenFrame(4);     // in ms
 	int     lenthOfFrame   (40);    // in ms
 	double  gapInSample    (gapBetweenFrame * 1e-3 * sampleRate);
 	double  nbFrame        ((storage.size() / gapInSample));
 	int     lenthFft       (static_cast<int>(lenthOfFrame * 1e-3 * sampleRate));
 	int     beginFrame     (static_cast<int>(0.5 * nbFrame)); // future sample to fft
 	int     stopFrame      (static_cast<int>(0.25 * nbFrame));
+	int     nbFft          (40 / gapBetweenFrame);
 
 	//windows//
 	std::vector<double> hann(lenthFft);
@@ -94,8 +95,8 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	fftw_complex* frameOut;
 	fftw_complex* frameIn;
-	frameIn = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * 40);
-	frameOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * 40);
+	frameIn = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * nbFft);
+	frameOut = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * lenthFft * nbFft);
 
 	fftw_plan p;
 
@@ -104,7 +105,7 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	int rank = 1;
 	int n[] = { lenthFft };
-	int howmany = 40;
+	int howmany = nbFft;
 	int idist = lenthFft;
 	int odist = lenthFft;      /*  the distance in memory between the first element of the first array and the first element of the second array */
 	int istride = 1;           /* array is contiguous in memory */
@@ -160,7 +161,7 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	//---end sort---//
 
-	double gamma(1.0); // as in the paper in %
+	double gamma(1); // as in the paper in %
 	double J(floor(gamma * double(lenthFft)));
 	std::vector <double> invSparsity(0);
 
@@ -206,6 +207,13 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 	}
 	// this is the sparsity method
 
+	for (int i = 0; i < (invSparsity.size()); ++i)
+	{
+		if (isnan(invSparsity[i]))
+		{
+			invSparsity[i] = 0;
+		}
+	}
 
 	//store these value
 	for (int i = 0; i < (invSparsity.size()); ++i)
@@ -223,9 +231,9 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	//take 80ms before
 
-	double past_observation(2.0);
+	double past_observation(25.0); // 1000 past + 20 past
 
-	for (int i = 0; i < ((0.5+ past_observation) * nbFrame); ++i)
+	for (int i = 0; i < ((0.5 + past_observation) * nbFrame); ++i)
 	{
 		invSparsity.push_back(storageSparse[storageSparse.size() - static_cast<int>((0.25+0.5+past_observation) * nbFrame) + i]);
 	}
@@ -234,7 +242,6 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	std::rotate(invSparsity.begin(), invSparsity.begin() + static_cast<int>(0.25 * nbFrame), invSparsity.end());
 
-
 	//peack detection//
 
 	double q(1.0 - (double(gapBetweenFrame) / double(lenthOfFrame)));
@@ -242,18 +249,21 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 	double r(sampleRate / h);
 	double combination_width(ceil(r * lenthFft / sampleRate / 2.0));
 
-	double alpha ((20.0 / (double)gapBetweenFrame));      // for interval max value between a and b // 20 by default.
-	double beta  ((40.0 / (double)gapBetweenFrame));      // for interval min value between a and b // 20 by default.
-	double a     ((320.0 / (double)gapBetweenFrame));      // for mean max value between a and b // 40 by default.
-	double b     ((10.0 / (double)gapBetweenFrame));      // for mean min value between a and b // 40 by default.
+	double alpha ((3.0));      // for interval max value between a and b // 20 by default.
+	double beta  ((3.0));      // for interval min value between a and b // 20 by default.
+	double a     ((10.0));      // for mean max value between a and b // 40 by default.
+	double b     ((10.0));      // for mean min value between a and b // 40 by default.
 
-	double delta(double(thresholdValue) / 100.0);          // threshold for the mean. 10 advice
+	double delta (double(thresholdValue) / 100.0);          // threshold for the mean. 10 advice
 	int    pointer(0);                                     // index
-	double sum;
+	double sum_around_peak;
+	double sum_big_window;
+	double divisor; // to weigth big window
+	double weigth_divisor(0.01);
 
 	//normalization//
-
-	double maxx = 0;
+	double max_around_peak = 0;
+	double max_big_window = 0;
 	/*
 	for (int m = 0; m < storageSparse.size(); ++m)
 	{
@@ -276,27 +286,73 @@ void onsetDetector(std::vector<double> const& storage, std::vector<bool>& timeOf
 
 	timeOfOnset.clear();
 	onsetScope.clear();
-
+	//std::cout << std::endl;
 	//peack detection computation//
 	for (int i = static_cast<int>(nbFrame / 4.0 + past_observation * nbFrame); i < static_cast<int>((nbFrame / 2.0) + past_observation * nbFrame); ++i) //40ms beacause each frame is 1ms
 	{
 
-		maxx = 0;
+		max_around_peak = 0;
 		for (int m = static_cast<int>(i - alpha); m <= static_cast<int>(i + beta); ++m)
 		{
-			if (maxx < invSparsity[m])
+			if (max_around_peak < invSparsity[m])
 			{
-				maxx = invSparsity[m];
+				max_around_peak = invSparsity[m];
 			}
 		}
-
-		sum = 0;
-		for (int j = static_cast<int>(i - a); j < static_cast<int>(i + b + 1.0); j++)
+		//std::cout << max_around_peak;
+		max_big_window = 0;
+		for (int m = static_cast<int>(i - alpha - 500.0); m <= static_cast<int>(i + 10); ++m)
 		{
-			sum = sum + invSparsity[j] + delta* maxx;
+			if(std::abs(m-i)>100)
+			{
+				if (max_big_window <= (invSparsity[m] / (std::abs((double)m-i)*0.01)) )
+				{
+					max_big_window = invSparsity[m];
+				}
+			}
+			else
+			{
+				if (max_big_window < invSparsity[m])
+				{
+					max_big_window = invSparsity[m];
+				}
+			}
+
 		}
 
-		if ((invSparsity[i] == maxx) && (invSparsity[i] >= (sum / (a + b + 1.0))) && (double(i - pointer) > combination_width))
+		sum_around_peak = 0;
+		for (int j = static_cast<int>(i - a - 10); j <= static_cast<int>(i + b - 10); ++j)
+		{
+			sum_around_peak = sum_around_peak + invSparsity[j] + delta * max_big_window;
+		}
+		
+		divisor = 0;
+		sum_big_window = 0;
+		/*
+		for (int j = static_cast<int>(i - a - 500); j <= static_cast<int>(i + b); ++j)
+		{
+			sum_big_window = sum_big_window + invSparsity[j];
+		}
+		*/
+		for (int j = static_cast<int>(- a - 500.0); j <= static_cast<int>(b); ++j)
+		{
+			if (j == 0)//do not divide by 0!
+			{
+				sum_big_window = sum_big_window + invSparsity[double(i)+double(j)];
+				divisor += 1.0;
+			}
+			else
+			{
+				sum_big_window = sum_big_window + invSparsity[double(i)+double(j)] / std::abs((double)j);
+				divisor += (1.0 / std::abs((double)j));
+			}
+			
+		}
+		sum_big_window = sum_big_window / divisor; //mean on big window of past value
+		
+		//sum_big_window = (sum_big_window / (a + b + 1.0 + 1000.0));//mean on big window of past value
+
+		if ((invSparsity[i] == max_around_peak) && (invSparsity[i] >= (sum_around_peak / (a + b + 1.0))) && (double(i - pointer) > combination_width) && (invSparsity[i] >= (sum_big_window)) && (invSparsity[i] > (std::numeric_limits<float>::min())))
 		{
 			pointer = i;
 			timeOfOnset.push_back(true);

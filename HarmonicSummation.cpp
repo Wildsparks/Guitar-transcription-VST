@@ -32,7 +32,7 @@ double HarmonicSummation(const std::vector<double>& SegmentFFT,  int f0LimitsInf
 	
 	//for each frequence we get the sum of the value of the exact harmonic.
 	//make it more precise :
-	/*
+	
 	for (double i = pitch-4.0; i < pitch+4.0; i += 0.01)
 	{
 		HarmonicIndex(SegmentFFT, sampleRate, nbOfHarmonicsInit, i, harmonics);
@@ -65,7 +65,7 @@ double HarmonicSummation(const std::vector<double>& SegmentFFT,  int f0LimitsInf
 			pitch = i;
 			maxSumHarmo = sumHarmo;
 		}
-	}*/
+	}
 	return(pitch);
 }
 
